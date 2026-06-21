@@ -24,11 +24,11 @@ LOOP.md の「段階導入」を実装するチェックリスト。
 - [x] gate 敵対検証（複数エージェントで突破試行）
 - [x] `.github/workflows/loop.yml`（cron→run→PR/issue）
 
-## ステージ4: gate内自動マージ＆デプロイ（完全自動）
-- [x] PR 自動マージ（`gh pr merge --squash --admin`）
-- [x] Vercel git 連携で main マージ→本番自動デプロイ
-- [ ] 外部リソース provision（GitHub / Turso / Vercel / secrets）
-- [ ] 初回 cron 実走で PR/issue 経路を確認
+## ステージ4: gate内自動デプロイ（完全自動）
+- [x] gate通過パッチは main へ直接コミット（Actions の PR作成権限に依存しない）
+- [x] Vercel git 連携で main → 本番デプロイ
+- [x] 外部リソース provision（GitHub / Turso / Vercel / secrets）
+- [x] 初回 cron 実走で patch 経路を確認（v1→v2 を自動コミット、patch_log 記録）
 
 ## ステージ5: パッチノート＆告知
 - [x] `loop/notes.mjs` で PATCHNOTES.md 自動更新

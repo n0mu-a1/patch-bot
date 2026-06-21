@@ -13,7 +13,7 @@
         ② 分類: rating集計 + Claudeでコメントから誤字/バグ/要望抽出
         ③ 判断: 難易度→balance易化/難化、誤字→text修正、バグ/要望→人間承認
         ④ gate(安全弁): game-config.jsのみ / balance・text・theme値のみ / ±25% / version+1 / 構文 / 回帰
-            ├ pass  → patch → 検証 → PR → 自動マージ → Vercel本番デプロイ → 告知(best-effort)
+            ├ pass  → patch → 検証 → main へ直接コミット → Vercel本番デプロイ → 告知(best-effort)
             └ fail  → GitHub issue で人間承認待ち
 ```
 
@@ -29,7 +29,7 @@
 | `db/schema.sql` | feedback / patch_log テーブル | - |
 | `loop/*.mjs` | 収集→分類→判断→**gate**→patch→検証→ノート | - |
 | `loop/gate.mjs` | **安全弁**（自動デプロイ許可ゾーンの機械判定・純関数） | - |
-| `.github/workflows/loop.yml` | cron→run→PR自動マージ / issue | - |
+| `.github/workflows/loop.yml` | cron→run→main直接コミット / issue起票 | - |
 | `LOOP.md` | 設計とgate条件 | - |
 
 ## ローカルで動かす
@@ -48,7 +48,8 @@ npm run loop:dry      # seed-feedback.json に対するループのドライラ�
 
 - **ドライラン（安全・既定）**: `node loop/run.mjs --dry-run --seed seed-feedback.json`
 - **本番適用（CI）**: `node loop/run.mjs --apply`（Turso/Anthropic の env が要る。`game-config.js` を更新し `decision.json` を出力）
-- 出力 `decision.json` を `loop.yml` が読み、`patch`→PR自動マージ / `escalate`→issue / `noop`→何もしない。
+- 出力 `decision.json` を `loop.yml` が読み、`patch`(applied=true)→main直接コミット / `escalate`→issue / `noop`→何もしない。
+  - 監査証跡は main のコミット + `PATCHNOTES.md` + Turso `patch_log`。PR自動マージ運用にしたい場合は、リポジトリ設定で「GitHub Actions に PR の作成・承認を許可」をON にし、`loop.yml` の patch 分岐を PR フローへ戻す。
 
 安全弁の閾値はすべて `loop/config.mjs`（`MIN_N` / `DECISION_MARGIN` / `STEP` / `MAX_DELTA` / `REGRESSION_EPS` / `BALANCE_BOUNDS`）。
 

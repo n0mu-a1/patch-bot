@@ -57,7 +57,7 @@
 1. [x] ゲーム＋フィードバック蓄積が動く
 2. [x] フィードバックを Turso にPOST（`api/feedback.js` + `feedback.js`、収集の自動化）
 3. [x] ②③を Claude(API) + GitHub Actions cron で実装（`loop/` 一式、提案→PR）
-4. [x] gate内に収まる小修正だけ自動マージ＆本番デプロイ（`loop.yml` の `gh pr merge --admin` + Vercel git連携）
+4. [x] gate内に収まる小修正は main へ直接コミット＆本番デプロイ（`loop.yml` + Vercel git連携。PR運用は repo設定で切替可）
 5. [x] パッチノート自動生成（`loop/notes.mjs`）＋ x-poster 告知フック（`loop/announce.mjs`、best-effort）
 
 > 実装の入口は `loop/run.mjs`。ローカル検証は `npm run loop:dry`、単体テストは `npm test`。
