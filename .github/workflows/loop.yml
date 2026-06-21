@@ -81,8 +81,10 @@ Co-Authored-By: reflex-lab autopatch loop <actions@users.noreply.github.com>"
                    --title "auto: config v${TO} — ${SUMMARY}" \
                    --body-file /tmp/pr-body.md)
             echo "PR: $PR"
-            # gate内に収まる小修正 → 自動マージ（owner権限で即マージ・Vercelがmainをデプロイ）
-            gh pr merge "$PR" --squash --delete-branch --admin
+            # gate内に収まる小修正 → 自動マージ（Vercelがmainをデプロイ）。
+            # 保護無しリポでは通常マージ、保護がある場合のみ --admin にフォールバック。
+            gh pr merge "$PR" --squash --delete-branch \
+              || gh pr merge "$PR" --squash --delete-branch --admin
             echo "マージ完了 → Vercel が本番デプロイ"
 
           elif [ "$ACTION" = "escalate" ]; then

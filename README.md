@@ -1,5 +1,7 @@
 # 瞬発ラボ (reflex-lab)
 
+本番: **https://reflex-lab-two.vercel.app** ／ リポジトリ: `n0mu-a1/reflex-lab`(private)
+
 光った的を消える前にタップする30秒の反射神経ゲーム（静的PWA）。
 本当の目的は **「プレイヤーのコメント → AIが game-config.js を自動パッチ → 配信」の自律ループ** を、
 事故を起こさず完全自動で回せるかを検証する土台を作ること。
