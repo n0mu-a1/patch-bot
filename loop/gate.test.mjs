@@ -43,7 +43,7 @@ test("PASS: 回帰が許容範囲内なら通る", () => {
 
 // ── block すべきケース ──────────────────────────────────────────
 test("BLOCK: 変化幅が±25%超", () => {
-  const n = bumped(); n.balance.targetLifeMs = Math.round(1100 * 1.3);
+  const n = bumped(); n.balance.targetLifeMs = Math.round(base.balance.targetLifeMs * 1.3);
   assert.equal(gate({ oldConfig: base, newConfig: n }).pass, false);
 });
 
@@ -114,7 +114,7 @@ test("VERIFY-OK: 正常パッチは合格", () => {
 test("PATCH: コメント・書式を保持して数値だけ置換", () => {
   const n = computePatch(baseText, [{ path: "balance.spawnIntervalMs", to: 820, kind: "balance" }]);
   assert.match(n, /spawnIntervalMs: 820,\s+\/\/ 的が出る間隔/);
-  assert.match(n, /version: 2,/);
+  assert.match(n, new RegExp(`version: ${base.version + 1},`));
 });
 
 test("PATCH: 存在しない文言は throw（曖昧なら触らない）", () => {

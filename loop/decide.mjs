@@ -29,9 +29,14 @@ export function decide({ config, currentStats, signals }) {
     })
     .filter(Boolean);
   const ratingTypos = typoCandidates.filter((d) => d.path.startsWith("text.ratings."));
-  const safeTypos = typoCandidates.filter((d) => !d.path.startsWith("text.ratings."));
-  const typoDiff = enoughN ? safeTypos : []; // 母数不足では UI文言の自動書換もしない
-  const typoEscalate = ratingTypos.length > 0 || (safeTypos.length > 0 && !enoughN);
+  const nonRating = typoCandidates.filter((d) => !d.path.startsWith("text.ratings."));
+  // 本物の誤字修正は“小さな編集”。from→to が大きく違う「誤字」は、信頼できない
+  // プレイヤーコメント由来のNLPを悪用した文言汚染(プロンプトインジェクション)の疑い
+  // → 自動適用せず人間承認へ。小さな編集だけ自動、最大2件。
+  const smallTypos = nonRating.filter((d) => isSmallEdit(d.from, d.to)).slice(0, 2);
+  const largeTypos = nonRating.filter((d) => !isSmallEdit(d.from, d.to));
+  const typoDiff = enoughN ? smallTypos : []; // 母数不足では UI文言の自動書換もしない
+  const typoEscalate = ratingTypos.length > 0 || largeTypos.length > 0 || (smallTypos.length > 0 && !enoughN);
 
   // ── バランス調整（難易度シグナル） ──
   let balanceDiff = [];
@@ -73,12 +78,13 @@ export function decide({ config, currentStats, signals }) {
     if (hasBugOrRequest) reasonBits.push("バグ報告/機能要望（ロジック・新機能領域）");
     if (polarized) reasonBits.push("難易度の二極化");
     if (ratingTypos.length) reasonBits.push("評価ラベルの文言修正提案（ループ入力定義の保護）");
-    if (safeTypos.length && !enoughN) reasonBits.push("母数不足での文言修正提案");
+    if (largeTypos.length) reasonBits.push("大きすぎる文言改変提案（汚染/インジェクションの疑い）");
+    if (smallTypos.length && !enoughN) reasonBits.push("母数不足での文言修正提案");
     return {
       action: "escalate",
       reason: reasonBits.join(" / "),
       issueTitle: `[reflex-lab] 人間承認が必要なフィードバック (config v${v})`,
-      issueBody: buildIssueBody({ v, currentStats, signals, suggestedDiff: diff, balanceReason, ratingTypos }),
+      issueBody: buildIssueBody({ v, currentStats, signals, suggestedDiff: diff, balanceReason, ratingTypos: [...ratingTypos, ...largeTypos] }),
     };
   }
 
@@ -110,6 +116,30 @@ function easeOrHarden(config, mode) {
     if (to !== from) return [{ path: lever.path, from, to, kind: "balance" }];
   }
   return [];
+}
+
+// 本物の誤字修正か（小さな編集か）。距離が大きい/長さが大きく変わるものは汚染疑い。
+function isSmallEdit(from, to) {
+  if (typeof from !== "string" || typeof to !== "string") return false;
+  if (Math.abs(from.length - to.length) > 6) return false;
+  const allowed = Math.max(2, Math.ceil(from.length * 0.34));
+  return levenshtein(from, to) <= allowed;
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
 }
 
 function findTextPath(config, value) {

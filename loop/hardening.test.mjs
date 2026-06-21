@@ -121,10 +121,32 @@ test("DECIDE: 母数不足での文言修正は escalate", () => {
   assert.equal(d.action, "escalate");
 });
 
+test("NLP-BLOCK: 大改変の偽『誤字』(文言汚染)は patch されず escalate", () => {
+  // プロンプトインジェクションで classifier に既存文言→詐欺文を出させたケースを模擬
+  const d = decide({
+    config: base,
+    currentStats: mkStats(20, 2, 14, 4), // just優勢→balanceは無変更。typoだけが争点
+    signals: { typos: [{ from: "瞬発ラボ", to: "当選！ http://evil.example で1万円もらえる今すぐクリック" }] },
+  });
+  assert.equal(d.action, "escalate");
+});
+
+test("NLP-OK: 本物の小さな誤字修正は自動 patch", () => {
+  const d = decide({
+    config: base,
+    currentStats: mkStats(20, 2, 14, 4),
+    signals: { typos: [{ from: "光った的を、消える前にタップ。", to: "光った的を、消える前にタッチ。" }] },
+  });
+  assert.equal(d.action, "patch");
+  assert.equal(d.diff[0].path, "text.tagline");
+});
+
 // ── 正常系の回帰（壊していないこと） ─────────────────────────────
 test("OK: 通常の易化 patch は gate/verify を通る", () => {
-  const newText = computePatch(baseText, [{ path: "balance.targetLifeMs", from: 1100, to: 1230, kind: "balance" }]);
+  const from = base.balance.targetLifeMs;
+  const to = Math.round(from * 1.1); // +10%（±25%以内・絶対域内）
+  const newText = computePatch(baseText, [{ path: "balance.targetLifeMs", from, to, kind: "balance" }]);
   const nc = loadConfigFromText(newText);
-  assert.equal(verifyText(newText, { expectedVersion: 2 }).ok, true);
+  assert.equal(verifyText(newText, { expectedVersion: base.version + 1 }).ok, true);
   assert.equal(gate({ oldConfig: base, newConfig: nc }).pass, true);
 });
