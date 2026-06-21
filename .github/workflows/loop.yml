@@ -57,10 +57,8 @@ jobs:
           if [ "$ACTION" = "patch" ]; then
             TO=$(jq -r '.toVersion' decision.json)
             SUMMARY=$(jq -r '.summary // ""' decision.json)
-            BRANCH="auto/patch-v${TO}"
             git config user.name  "reflex-lab-bot"
             git config user.email "actions@users.noreply.github.com"
-            git checkout -b "$BRANCH"
             git add game-config.js PATCHNOTES.md
             if git diff --cached --quiet; then
               echo "差分なし→スキップ"; exit 0
@@ -69,22 +67,11 @@ jobs:
               -m "auto: balance/text patch → config v${TO}" \
               -m "${SUMMARY}" \
               -m "Co-Authored-By: reflex-lab autopatch loop <actions@users.noreply.github.com>"
-            git push -u origin "$BRANCH"
-            jq -r '.notesBody // .summary // ""' decision.json > /tmp/pr-body.md
-            {
-              echo ""
-              echo "---"
-              echo "_gate/verify を通過した自動パッチです。マージすると本番へ自動デプロイされます。_"
-            } >> /tmp/pr-body.md
-            PR=$(gh pr create --base main --head "$BRANCH" \
-                   --title "auto: config v${TO} — ${SUMMARY}" \
-                   --body-file /tmp/pr-body.md)
-            echo "PR: $PR"
-            # gate内に収まる小修正 → 自動マージ（Vercelがmainをデプロイ）。
-            # 保護無しリポでは通常マージ、保護がある場合のみ --admin にフォールバック。
-            gh pr merge "$PR" --squash --delete-branch \
-              || gh pr merge "$PR" --squash --delete-branch --admin
-            echo "マージ完了 → Vercel が本番デプロイ"
+            # gate/verify を通過した小修正 → main へ直接コミット → Vercel が本番デプロイ。
+            # 監査証跡は main のコミット + PATCHNOTES.md + Turso patch_log。
+            # （PR自動マージ運用にしたい場合は repo設定で「Actions に PR作成・承認を許可」をON）
+            git push origin HEAD:main
+            echo "main へコミット → Vercel が本番デプロイ (config v${TO})"
 
           elif [ "$ACTION" = "escalate" ]; then
             TITLE=$(jq -r '.issueTitle // "[reflex-lab] 人間承認が必要"' decision.json)
