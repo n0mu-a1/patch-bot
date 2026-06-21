@@ -65,11 +65,10 @@ jobs:
             if git diff --cached --quiet; then
               echo "差分なし→スキップ"; exit 0
             fi
-            git commit -m "auto: balance/text patch → config v${TO}
-
-${SUMMARY}
-
-Co-Authored-By: reflex-lab autopatch loop <actions@users.noreply.github.com>"
+            git commit \
+              -m "auto: balance/text patch → config v${TO}" \
+              -m "${SUMMARY}" \
+              -m "Co-Authored-By: reflex-lab autopatch loop <actions@users.noreply.github.com>"
             git push -u origin "$BRANCH"
             jq -r '.notesBody // .summary // ""' decision.json > /tmp/pr-body.md
             {
