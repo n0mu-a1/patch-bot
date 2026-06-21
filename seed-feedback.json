@@ -1,0 +1,16 @@
+[
+  { "ts": "2026-06-21T10:00:00.000Z", "configVersion": 1, "rating": "hard", "comment": "的が小さくてすぐ消える", "score": 800 },
+  { "ts": "2026-06-21T10:01:00.000Z", "configVersion": 1, "rating": "hard", "comment": "速すぎてついていけない", "score": 650 },
+  { "ts": "2026-06-21T10:02:00.000Z", "configVersion": 1, "rating": "hard", "comment": "", "score": 720 },
+  { "ts": "2026-06-21T10:03:00.000Z", "configVersion": 1, "rating": "just", "comment": "ちょうどいい緊張感", "score": 1500 },
+  { "ts": "2026-06-21T10:04:00.000Z", "configVersion": 1, "rating": "hard", "comment": "消えるの早い", "score": 540 },
+  { "ts": "2026-06-21T10:05:00.000Z", "configVersion": 1, "rating": "easy", "comment": "", "score": 2300 },
+  { "ts": "2026-06-21T10:06:00.000Z", "configVersion": 1, "rating": "hard", "comment": "難しい！", "score": 610 },
+  { "ts": "2026-06-21T10:07:00.000Z", "configVersion": 1, "rating": "just", "comment": "", "score": 1320 },
+  { "ts": "2026-06-21T10:08:00.000Z", "configVersion": 1, "rating": "hard", "comment": "もう少し猶予がほしい", "score": 700 },
+  { "ts": "2026-06-21T10:09:00.000Z", "configVersion": 1, "rating": "hard", "comment": "", "score": 480 },
+  { "ts": "2026-06-21T10:10:00.000Z", "configVersion": 1, "rating": "easy", "comment": "余裕だった", "score": 2600 },
+  { "ts": "2026-06-21T10:11:00.000Z", "configVersion": 1, "rating": "just", "comment": "", "score": 1410 },
+  { "ts": "2026-06-21T10:12:00.000Z", "configVersion": 1, "rating": "hard", "comment": "テンポが速い", "score": 590 },
+  { "ts": "2026-06-21T10:13:00.000Z", "configVersion": 1, "rating": "hard", "comment": "", "score": 630 }
+]

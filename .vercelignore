@@ -1,0 +1,10 @@
+# 配信に不要なループ機構・DB定義・開発物はデプロイから除外（静的サイト+/apiのみ配信）
+loop/
+db/
+.github/
+seed-feedback.json
+decision.json
+PATCHNOTES.md
+LOOP.md
+task.md
+README.md

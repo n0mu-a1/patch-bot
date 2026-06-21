@@ -1,0 +1,97 @@
+name: reflex-lab autopatch loop
+
+# プレイヤーの声(Turso) → 分類/gate → game-config.js 自動パッチ → PR自動マージ → Vercel自動デプロイ。
+# gate を通らない/ロジック要望は issue 化して人間承認へ落とす（事故防止）。
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # 6時間ごと (UTC)
+  workflow_dispatch: {} # 手動トリガ（初回検証用）
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: reflex-loop
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Run autopatch loop
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node loop/run.mjs --apply
+
+      - name: Act on decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ ! -f decision.json ]; then echo "decision.json なし→何もしない"; exit 0; fi
+          ACTION=$(jq -r '.action // "noop"' decision.json)
+          APPLIED=$(jq -r '.applied // false' decision.json)
+          echo "action=$ACTION applied=$APPLIED"
+
+          if [ "$ACTION" = "patch" ] && [ "$APPLIED" != "true" ]; then
+            echo "patch だが applied≠true（ファイル未書込）→ git操作せず終了"; exit 0
+          fi
+
+          if [ "$ACTION" = "patch" ]; then
+            TO=$(jq -r '.toVersion' decision.json)
+            SUMMARY=$(jq -r '.summary // ""' decision.json)
+            BRANCH="auto/patch-v${TO}"
+            git config user.name  "reflex-lab-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git checkout -b "$BRANCH"
+            git add game-config.js PATCHNOTES.md
+            if git diff --cached --quiet; then
+              echo "差分なし→スキップ"; exit 0
+            fi
+            git commit -m "auto: balance/text patch → config v${TO}
+
+${SUMMARY}
+
+Co-Authored-By: reflex-lab autopatch loop <actions@users.noreply.github.com>"
+            git push -u origin "$BRANCH"
+            jq -r '.notesBody // .summary // ""' decision.json > /tmp/pr-body.md
+            {
+              echo ""
+              echo "---"
+              echo "_gate/verify を通過した自動パッチです。マージすると本番へ自動デプロイされます。_"
+            } >> /tmp/pr-body.md
+            PR=$(gh pr create --base main --head "$BRANCH" \
+                   --title "auto: config v${TO} — ${SUMMARY}" \
+                   --body-file /tmp/pr-body.md)
+            echo "PR: $PR"
+            # gate内に収まる小修正 → 自動マージ（owner権限で即マージ・Vercelがmainをデプロイ）
+            gh pr merge "$PR" --squash --delete-branch --admin
+            echo "マージ完了 → Vercel が本番デプロイ"
+
+          elif [ "$ACTION" = "escalate" ]; then
+            TITLE=$(jq -r '.issueTitle // "[reflex-lab] 人間承認が必要"' decision.json)
+            jq -r '.issueBody // .reason // ""' decision.json > /tmp/issue-body.md
+            gh issue create --title "$TITLE" --body-file /tmp/issue-body.md --label "autopatch" || \
+              gh issue create --title "$TITLE" --body-file /tmp/issue-body.md
+            echo "issue 起票（人間承認待ち）"
+
+          else
+            echo "noop: $(jq -r '.reason // ""' decision.json)"
+          fi

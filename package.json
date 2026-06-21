@@ -1,0 +1,22 @@
+{
+  "name": "reflex-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "瞬発ラボ — 反射神経ゲーム + 自律パッチループ（プレイヤーの声→AI自動調整→配信）の検証基盤",
+  "scripts": {
+    "serve": "python3 -m http.server 5173",
+    "loop": "node loop/run.mjs --apply",
+    "loop:dry": "node loop/run.mjs --dry-run --seed seed-feedback.json",
+    "loop:dry:live": "node loop/run.mjs --dry-run",
+    "test": "node --test loop/*.test.mjs",
+    "db:schema": "turso db shell \"$TURSO_DB_NAME\" < db/schema.sql"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.1",
+    "@libsql/client": "^0.17.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
