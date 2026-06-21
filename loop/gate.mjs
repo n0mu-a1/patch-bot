@@ -12,7 +12,7 @@
 
 import {
   flatten, BALANCE_BOUNDS, MAX_DELTA, MAX_BALANCE_CHANGES, REGRESSION_EPS,
-  DIFFICULTY_LEVER_PATHS, THEME_COLOR_RE, TEXT_MAX,
+  DIFFICULTY_LEVER_PATHS, THEME_COLOR_RE, TEXT_MAX, DANGEROUS_TEXT_RE, isSmallTextEdit,
 } from "./config.mjs";
 
 const ALLOWED_DOCS = new Set(["PATCHNOTES.md", "decision.json", "task.md"]);
@@ -94,6 +94,12 @@ export function gate({ oldConfig, newConfig, changedFiles = ["game-config.js"], 
         failures.push(`文言が長すぎる(>${TEXT_MAX}): ${key}`);
       } else if (/[<>]/.test(nv)) {
         failures.push(`文言にHTMLメタ文字を含む（人間承認へ）: ${key}`);
+      } else if (DANGEROUS_TEXT_RE.test(nv)) {
+        // 双方向制御(RLO)・ゼロ幅・BOM 等の不可視/表示偽装文字（LLM経路の汚染対策）
+        failures.push(`文言に制御/不可視文字(bidi等)を含む（人間承認へ）: ${key}`);
+      } else if (!isSmallTextEdit(ov, nv)) {
+        // 安全弁として decide を信頼せず、文言変更が誤字修正の範囲かを独立再検証する
+        failures.push(`文言変更が誤字修正の範囲を超える（人間承認へ）: ${key}`);
       }
     }
   }

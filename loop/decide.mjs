@@ -9,7 +9,7 @@
 import {
   MIN_N, JUST_DOMINANT, DECISION_MARGIN, STEP,
   BALANCE_BOUNDS, DIFFICULTY_LEVERS,
-  deepGet, flatten, clamp, roundTo,
+  deepGet, flatten, clamp, roundTo, isSmallTextEdit,
 } from "./config.mjs";
 
 const pct = (x) => `${Math.round(x * 100)}%`;
@@ -33,8 +33,8 @@ export function decide({ config, currentStats, signals }) {
   // 本物の誤字修正は“小さな編集”。from→to が大きく違う「誤字」は、信頼できない
   // プレイヤーコメント由来のNLPを悪用した文言汚染(プロンプトインジェクション)の疑い
   // → 自動適用せず人間承認へ。小さな編集だけ自動、最大2件。
-  const smallTypos = nonRating.filter((d) => isSmallEdit(d.from, d.to)).slice(0, 2);
-  const largeTypos = nonRating.filter((d) => !isSmallEdit(d.from, d.to));
+  const smallTypos = nonRating.filter((d) => isSmallTextEdit(d.from, d.to)).slice(0, 2);
+  const largeTypos = nonRating.filter((d) => !isSmallTextEdit(d.from, d.to));
   const typoDiff = enoughN ? smallTypos : []; // 母数不足では UI文言の自動書換もしない
   const typoEscalate = ratingTypos.length > 0 || largeTypos.length > 0 || (smallTypos.length > 0 && !enoughN);
 
@@ -118,35 +118,21 @@ function easeOrHarden(config, mode) {
   return [];
 }
 
-// 本物の誤字修正か（小さな編集か）。距離が大きい/長さが大きく変わるものは汚染疑い。
-function isSmallEdit(from, to) {
-  if (typeof from !== "string" || typeof to !== "string") return false;
-  if (Math.abs(from.length - to.length) > 6) return false;
-  const allowed = Math.max(2, Math.ceil(from.length * 0.34));
-  return levenshtein(from, to) <= allowed;
-}
-
-function levenshtein(a, b) {
-  const m = a.length, n = b.length;
-  if (m === 0) return n;
-  if (n === 0) return m;
-  let prev = Array.from({ length: n + 1 }, (_, j) => j);
-  for (let i = 1; i <= m; i++) {
-    const cur = [i];
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-    }
-    prev = cur;
-  }
-  return prev[n];
-}
-
 function findTextPath(config, value) {
   for (const [k, v] of Object.entries(flatten(config))) {
     if (k.startsWith("text.") && v === value) return k;
   }
   return null;
+}
+
+// プレイヤーコメント由来の文字列を GitHub issue 本文に埋め込む前に無害化する。
+// 改行を潰して複数行インジェクションを防ぎ、行頭の Markdown 構造文字をエスケープする
+// （見出し/水平線/表/引用に化けて人間レビュアを誤誘導するのを防ぐ）。
+function sanitizeMd(s) {
+  return String(s)
+    .replace(/\r?\n/g, " ")
+    .replace(/^[#>|`\-*_~+=.]/u, "\\$&")
+    .trim();
 }
 
 function summarize(diff, balanceReason) {
@@ -164,13 +150,13 @@ function buildIssueBody({ v, currentStats, signals, suggestedDiff, balanceReason
     `- ${balanceReason}`,
     "",
   ];
-  if (signals.bugs?.length) lines.push("## バグ報告", ...signals.bugs.map((b) => `- ${b}`), "");
-  if (signals.requests?.length) lines.push("## 要望", ...signals.requests.map((r) => `- ${r}`), "");
-  if (ratingTypos?.length) lines.push("## 評価ラベルの修正提案（自動適用しない）", ...ratingTypos.map((d) => `- \`${d.path}\`「${d.from}」→「${d.to}」`), "");
+  if (signals.bugs?.length) lines.push("## バグ報告", ...signals.bugs.map((b) => `- ${sanitizeMd(b)}`), "");
+  if (signals.requests?.length) lines.push("## 要望", ...signals.requests.map((r) => `- ${sanitizeMd(r)}`), "");
+  if (ratingTypos?.length) lines.push("## 評価ラベルの修正提案（自動適用しない）", ...ratingTypos.map((d) => `- \`${d.path}\`「${sanitizeMd(d.from)}」→「${sanitizeMd(d.to)}」`), "");
   if (suggestedDiff?.length) {
     lines.push("## 参考: gate内で自動化可能だった調整案", ...suggestedDiff.map((d) => `- \`${d.path}\` ${d.kind === "balance" ? `${d.from}→${d.to}` : "文言修正"}`), "");
   }
-  if (signals.summary) lines.push(`> ${signals.summary}`);
+  if (signals.summary) lines.push(`> ${sanitizeMd(signals.summary)}`);
   lines.push("", "---", "_このissueは reflex-lab 自律ループが自動起票。承認するなら game-config.js を手で調整してください。_");
   return lines.join("\n");
 }

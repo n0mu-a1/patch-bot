@@ -7,9 +7,7 @@
 // ====================================================================
 
 import { execFileSync } from "node:child_process";
-import { loadConfigFromText, flatten, REQUIRED_SHAPE, BALANCE_BOUNDS, THEME_COLOR_RE, TEXT_MAX } from "./config.mjs";
-
-const CONTROL_CHARS = new RegExp("[\\u0000-\\u001f\\u007f]");
+import { loadConfigFromText, flatten, REQUIRED_SHAPE, BALANCE_BOUNDS, THEME_COLOR_RE, TEXT_MAX, DANGEROUS_TEXT_RE } from "./config.mjs";
 
 export function verifyText(newText, { expectedVersion } = {}) {
   const errors = [];
@@ -31,8 +29,12 @@ export function verifyText(newText, { expectedVersion } = {}) {
     if (type === "number" && !Number.isFinite(val)) errors.push(`数値が不正(NaN/Inf): ${path}`);
     if (type === "string") {
       if (val.length > TEXT_MAX) errors.push(`文言が長すぎる(>${TEXT_MAX}): ${path}`);
-      if (CONTROL_CHARS.test(val)) errors.push(`制御文字を含む: ${path}`);
-      if (path.startsWith("theme.") && !THEME_COLOR_RE.test(val)) errors.push(`配色は #rrggbb 形式のみ: ${path}=${val}`);
+      if (DANGEROUS_TEXT_RE.test(val)) errors.push(`制御/不可視文字(bidi等)を含む: ${path}`);
+      if (path.startsWith("theme.")) {
+        if (!THEME_COLOR_RE.test(val)) errors.push(`配色は #rrggbb 形式のみ: ${path}=${val}`);
+      } else if (/[<>]/.test(val)) {
+        errors.push(`文言にHTMLメタ文字を含む: ${path}`); // gate と独立に弾く（多層防御）
+      }
     }
   }
 

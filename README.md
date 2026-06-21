@@ -47,7 +47,7 @@ npm run loop:dry      # seed-feedback.json に対するループのドライラ�
 ## ループの動かし方
 
 - **ドライラン（安全・既定）**: `node loop/run.mjs --dry-run --seed seed-feedback.json`
-- **本番適用（CI）**: `node loop/run.mjs --apply`（Turso/Anthropic の env が要る。`game-config.js` を更新し `decision.json` を出力）
+- **本番適用（CI）**: `node loop/run.mjs --apply`（Turso の env が要る。`game-config.js` を更新し `decision.json` を出力）
 - 出力 `decision.json` を `loop.yml` が読み、`patch`(applied=true)→main直接コミット / `escalate`→issue / `noop`→何もしない。
   - 監査証跡は main のコミット + `PATCHNOTES.md` + Turso `patch_log`。PR自動マージ運用にしたい場合は、リポジトリ設定で「GitHub Actions に PR の作成・承認を許可」をON にし、`loop.yml` の patch 分岐を PR フローへ戻す。
 
@@ -60,7 +60,16 @@ Vercel は Git 連携で main へのマージごとに本番デプロイ。GHA �
 | secret | 用途 |
 |---|---|
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | フィードバック収集の読み（ループ） |
-| `ANTHROPIC_API_KEY` | コメントNLP（無くても rating集計だけで動く） |
+| `GROQ_API_KEY` | コメントNLP（**任意・無料枠**。未設定でもキー不要の heuristic で動く） |
+| `ANTHROPIC_API_KEY` | コメントNLP（**任意・有料**。`REFLEX_NLP_PROVIDER=anthropic` を明示した時だけ使用） |
+
+### コメント分類のコスト方針（テスト段階は無料）
+
+既定（auto）は **無料の経路しか呼ばない**。優先順は次の通りで、LLM 呼び出しが失敗しても heuristic に自動フォールバックするので止まらない／課金しない。
+
+- `GROQ_API_KEY` あり → **Groq 無料枠**でLLM分類（`llama-3.3-70b-versatile`）
+- キー無し → **heuristic**（キーワード判定・キー不要・$0・LLM無しなのでプロンプトインジェクション面ゼロ）
+- 有料の Anthropic は Variables `REFLEX_NLP_PROVIDER=anthropic` を設定した時だけ。`heuristic`/`off` で固定も可。
 
 Vercel 側 env にも `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`（+任意 `FEEDBACK_ALLOW_ORIGIN`）を設定（`/api/feedback` 用）。
 

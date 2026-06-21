@@ -37,7 +37,12 @@ jobs:
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          # コメント分類のコスト方針: 既定(auto)は無料のみ。
+          #   GROQ_API_KEY 有 → Groq 無料枠でLLM分類 / 無 → キー不要の heuristic。どちらも $0。
+          #   有料の Anthropic を使う時だけ REFLEX_NLP_PROVIDER=anthropic を設定する。
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REFLEX_NLP_PROVIDER: ${{ vars.REFLEX_NLP_PROVIDER }}
         run: node loop/run.mjs --apply
 
       - name: Act on decision

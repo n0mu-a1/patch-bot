@@ -30,6 +30,20 @@ export const REGRESSION_EPS = 0.05; // ネガティブ率がこの幅を超え�
 export const THEME_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 export const TEXT_MAX = 200;
 
+// UI文言に混入させてはいけない文字（gate / verify / classify が共有）:
+//   C0制御/DEL に加え、双方向制御(RLO等)・ゼロ幅・行/段落分離・単語結合子・BOM。
+//   表示偽装(右左反転)や不可視文字の密輸を、見えない=安全に見えるまま通さない。
+//   日本語・英数・記号・絵文字は対象外なので正規の文言は弾かない。
+export const DANGEROUS_TEXT_RE = new RegExp(
+  "[\\u0000-\\u001f\\u007f\\u200b-\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2060-\\u2064\\ufeff]",
+);
+export const DANGEROUS_TEXT_RE_G = new RegExp(DANGEROUS_TEXT_RE.source, "g");
+
+// 文言の自動変更は“小さな編集（誤字修正の範囲）”のみ許可する閾値（decide / gate が共有）。
+export const TEXT_EDIT_MAX_LEN_DIFF = 6; // 文字数差がこれを超えたら誤字修正ではない
+export const TEXT_EDIT_MIN_ALLOWED = 2; // 短文でも最低これだけの編集距離は許す
+export const TEXT_EDIT_RATIO = 0.34; // 許容編集距離 = 元長 × この比率（切上げ）
+
 // ── バランス値の絶対安全域（gate と decide のクランプ） ──
 export const BALANCE_BOUNDS = {
   roundSeconds: [15, 90],
@@ -153,4 +167,30 @@ export function clamp(v, [lo, hi]) {
 
 export function roundTo(v, step) {
   return Math.round(v / step) * step;
+}
+
+// 文字列の編集距離（Levenshtein）。誤字修正の“小ささ”判定に使う。
+export function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+// from→to が“誤字修正の範囲の小さな編集”か。これを超える改変は汚染/インジェクション疑い。
+// decide（提案時）と gate（安全弁・独立再検証）が同じ判定を共有する＝多層防御。
+export function isSmallTextEdit(from, to) {
+  if (typeof from !== "string" || typeof to !== "string") return false;
+  if (Math.abs(from.length - to.length) > TEXT_EDIT_MAX_LEN_DIFF) return false;
+  const allowed = Math.max(TEXT_EDIT_MIN_ALLOWED, Math.ceil(from.length * TEXT_EDIT_RATIO));
+  return levenshtein(from, to) <= allowed;
 }

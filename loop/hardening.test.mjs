@@ -141,6 +141,35 @@ test("NLP-OK: 本物の小さな誤字修正は自動 patch", () => {
   assert.equal(d.diff[0].path, "text.tagline");
 });
 
+// ── LLM経路の文言汚染（bidi/不可視・編集距離超過）を gate/verify が独立に弾く ──
+test("BLOCK: 双方向制御文字(RLO)入りの文言は gate と verify が拒否", () => {
+  const evil = base.text.resultPrefix + "\u202e"; // 表示偽装（右左反転）
+  const n = bumped(); n.text.resultPrefix = evil;
+  assert.equal(gate({ oldConfig: base, newConfig: n }).pass, false);
+  const newText = computePatch(baseText, [{ path: "text.resultPrefix", from: base.text.resultPrefix, to: evil, kind: "text" }]);
+  assert.equal(verifyText(newText, { expectedVersion: base.version + 1 }).ok, false);
+});
+
+test("BLOCK: ゼロ幅スペース / BOM 入りの文言も拒否", () => {
+  const a = bumped(); a.text.title = "瞬発\u200bラボ"; // ZWSP
+  assert.equal(gate({ oldConfig: base, newConfig: a }).pass, false);
+  const b = bumped(); b.text.title = "\ufeff瞬発ラボ"; // BOM
+  assert.equal(gate({ oldConfig: base, newConfig: b }).pass, false);
+});
+
+test("BLOCK: 誤字修正の範囲を超える文言改変は gate が独立に拒否（decideを信頼しない）", () => {
+  const to = "まったく別の宣伝文句にすり替える例文"; // 元と大きく異なる（編集距離が許容超）
+  const n = bumped(); n.text.tagline = to;
+  const r = gate({ oldConfig: base, newConfig: n });
+  assert.equal(r.pass, false);
+  assert.ok(r.failures.some((f) => f.includes("誤字修正の範囲")), r.failures.join("; "));
+});
+
+test("VERIFY-BLOCK: text に <> を含むと verify 単独でも弾く（gateと多層）", () => {
+  const newText = computePatch(baseText, [{ path: "text.startButton", from: base.text.startButton, to: "<b>開始", kind: "text" }]);
+  assert.equal(verifyText(newText, { expectedVersion: base.version + 1 }).ok, false);
+});
+
 // ── 正常系の回帰（壊していないこと） ─────────────────────────────
 test("OK: 通常の易化 patch は gate/verify を通る", () => {
   const from = base.balance.targetLifeMs;

@@ -104,7 +104,7 @@ async function main() {
   log(`\n=== reflex-lab loop (${mode.toUpperCase()}) ===`);
   log(`config v${version} / feedback ${entries.length}件 / 現version N=${currentStats.n} ` +
     `(難 ${pct(currentStats.hardRate)} / 丁度 ${pct(currentStats.justRate)} / 易 ${pct(currentStats.easyRate)})`);
-  if (signals.summary) log(`コメント傾向: ${signals.summary}`);
+  log(`コメント分類: provider=${signals.provider || "none"}${signals.summary ? ` / ${signals.summary}` : ""}`);
 
   const decision = decide({ config: oldConfig, currentStats, signals });
   let result;
