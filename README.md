@@ -24,17 +24,27 @@
 安全弁 gate の条件: `game-config.js` のみ / balance・text・theme 値のみ / ±25% /
 version+1 / 構文green / 回帰なし。1つでも外れたら escalate（人間承認）。
 
-### ② 承認型（画像つき報告 → Discord承認 → 適用）※構築中
+### ② 承認型（画像つき報告 → Discord承認 → 適用）
 対象アプリのユーザーが画像つきで不具合報告 → patch-bot が収集 → Discord に通知 →
-ボタン/リアクションで承認 → 対象アプリへ適用、という人間承認フロー（漢字ドリル方式）。
+オーナーが ✅/❌ リアクションで承認 → 承認分を対象リポジトリへ投げる（漢字ドリル方式）。
+常駐 bot 不要の **REST ポーリング方式**（cron 15分間隔）。
 
 ```
-収集:   App → /api/report → Vercel Blob (reports/<app>/<日付>/<id>.json+jpg)
-承認:   Blob列挙 → Discord通知 → 承認 → 対象リポジトリへ適用   ← 未実装
+① 収集:   App → /api/report → Vercel Blob (reports/<app>/<日付>/<id>.json+jpg)   triage=new
+② 通知:   triage/notify  新規報告 → 修正趣旨を起草 → Discord 投稿 + ✅/❌     triage=awaiting
+③ 判定:   triage/resolve ✅/❌ をポーリング → オーナー ✅ なら対象リポへ        triage=approved/rejected
+                          repository_dispatch(approved-fix) ← M2 が受けて実装
 ```
 
-- 実装済: `api/report.js`（画像つき報告の収集 → Blob、`app` で対象識別）
-- 未実装: Discord 連携（通知 / 承認 webhook / 適用オーケストレータ）
+- 実装済(M1): `api/report.js`（収集→Blob）、`triage/`（discord / store / draft / notify / resolve / github dispatch）
+- 未実装(M2): 対象リポ側で `approved-fix` を受けてエージェント修正→PR→自動マージする workflow
+
+実行: `node triage/run.mjs both`（`--dry-run` で書き込みなし）。
+
+必要な env: `BLOB_READ_WRITE_TOKEN` / `DISCORD_BOT_TOKEN`（Iris の Bot を流用）/
+`DISCORD_OWNER_ID`（承認者）/ `GH_DISPATCH_TOKEN`（対象リポへ dispatch する PAT）/
+アプリ別に `DISCORD_CHANNEL_<APP>` と `TARGET_REPO_<APP>`（例 `DISCORD_CHANNEL_HIRAGANA`）/
+`GROQ_API_KEY`（任意・修正趣旨をLLM起草。無ければ無料 heuristic）。
 
 ## 構成
 

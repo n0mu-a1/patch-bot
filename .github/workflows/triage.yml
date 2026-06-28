@@ -1,0 +1,37 @@
+name: patch-bot triage (承認型)
+
+# 承認型: 新規不具合報告(Blob) → Discord 通知＋✅/❌ → ポーリングで承認/拒否 → 承認は対象リポへ dispatch。
+# 自立型(loop) とは独立。常駐 bot 不要（REST ポーリング方式）。
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # 15分ごとにポーリング
+  workflow_dispatch: {}
+
+concurrency:
+  group: patch-bot-triage
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --no-audit --no-fund
+      - name: Notify new reports & resolve approvals
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_OWNER_ID: ${{ secrets.DISCORD_OWNER_ID }}
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # アプリごとのチャンネル / 対象リポ（app識別子を大文字化・-→_）:
+          DISCORD_CHANNEL_HIRAGANA: ${{ vars.DISCORD_CHANNEL_HIRAGANA }}
+          TARGET_REPO_HIRAGANA: ${{ vars.TARGET_REPO_HIRAGANA }}
+          DISCORD_CHANNEL_KANJI_DRILL: ${{ vars.DISCORD_CHANNEL_KANJI_DRILL }}
+          TARGET_REPO_KANJI_DRILL: ${{ vars.TARGET_REPO_KANJI_DRILL }}
+        run: node triage/run.mjs both

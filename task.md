@@ -16,12 +16,24 @@ reflex-lab（反射神経ゲーム＋自律パッチループ）を、ゲーム�
 - [ ] hiragana リポジトリの自前 loop を patch-bot/loop の最新と同期する運用を決める
 - [ ] examples の命名整理（reflex→より中立な名前にするか検討）
 
-## 承認型（構築中）
-- [ ] Discord アプリ作成（bot token / public key / application id）
-- [ ] 新規報告 → Discord 通知（画像＋本文＋メタ、reports/<app>/ を列挙）
-- [ ] 承認 webhook（`api/discord-interactions.js`：署名検証＋ボタン操作）
-- [ ] 承認 → 対象アプリリポジトリへ適用するオーケストレータ（修正の出し方を設計）
-- [ ] 対象アプリ側に報告UI（画像添付）を追加（hiragana から）
+## 承認型
+M1（patch-bot側オーケストレーション・REST ポーリング方式）:
+- [x] `triage/discord.mjs`（Iris の discord lib を移植）
+- [x] `triage/store.mjs`（Blob 報告の列挙/読取/状態更新）
+- [x] `triage/draft.mjs`（修正趣旨の起草・無料 heuristic / 任意 Groq）
+- [x] `triage/notify.mjs`（新規報告→Discord投稿＋✅/❌→awaiting）
+- [x] `triage/resolve.mjs`（リアクション判定→承認は対象リポへ dispatch）
+- [x] `.github/workflows/triage.yml`（15分 cron）/ 単体テスト（承認判定 等）
+
+M2（対象リポ側・実装）:
+- [ ] 対象リポに `approved-fix`(repository_dispatch) を受ける workflow
+- [ ] エージェントで修正→PR→自動マージ→デプロイ（hiragana から）
+- [ ] 対象アプリに報告UI（画像添付）を追加し `/api/report` へ POST
+
+承認型の env / secrets:
+- [ ] Discord: Iris の `DISCORD_BOT_TOKEN` 流用 / `DISCORD_OWNER_ID`（自分のID）
+- [ ] アプリ別チャンネル作成 → `DISCORD_CHANNEL_<APP>` / `TARGET_REPO_<APP>`
+- [ ] `GH_DISPATCH_TOKEN`（対象リポへ dispatch する PAT）
 
 ## インフラ
 - [ ] Vercel: reflex-lab-two を patch-bot サービスに流用（relink / 必要なら rename）
