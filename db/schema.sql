@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS feedback (
   rating         TEXT    NOT NULL CHECK (rating IN ('easy','just','hard')),
   comment        TEXT    NOT NULL DEFAULT '',
   score          INTEGER NOT NULL DEFAULT 0,
+  game           TEXT    NOT NULL DEFAULT 'reflex',
+  kana_json      TEXT,
   ua_hash        TEXT,                                   -- IP+UAのhash(個人情報は保存しない/濫用検知用)
   created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );

@@ -9,11 +9,14 @@ import assert from "node:assert/strict";
 import { gate } from "./gate.mjs";
 import { verifyText } from "./verify.mjs";
 import { computePatch } from "./patch.mjs";
-import { loadConfig, CONFIG_PATH } from "./config.mjs";
+import { loadConfig, CONFIG_PATH, getProfile } from "./config.mjs";
 import { readFileSync } from "node:fs";
 
+const profile = getProfile("reflex");
+const hiraganaProfile = getProfile("hiragana");
 const base = loadConfig();
 const baseText = readFileSync(CONFIG_PATH, "utf8");
+const hiraganaBase = loadConfig(hiraganaProfile.CONFIG_PATH);
 const clone = () => structuredClone(base);
 const bumped = () => { const c = clone(); c.version = base.version + 1; return c; };
 
@@ -31,7 +34,15 @@ test("PASS: 文言修正(text)は通る", () => {
 
 test("PASS: ドキュメント同時変更(PATCHNOTES.md)は許容", () => {
   const n = bumped(); n.balance.targetSizePx = 80;
-  const r = gate({ oldConfig: base, newConfig: n, changedFiles: ["game-config.js", "PATCHNOTES.md", "decision.json"] });
+  const r = gate({ oldConfig: base, newConfig: n, changedFiles: [profile.GAME_CONFIG_FILE, profile.PATCHNOTES_FILE, profile.DECISION_FILE] });
+  assert.equal(r.pass, true, r.failures.join("; "));
+});
+
+test("PASS: hiragana profile のバランス易化は通る", () => {
+  const n = structuredClone(hiraganaBase);
+  n.version = hiraganaBase.version + 1;
+  n.balance.distractorSimilarity = 0.55;
+  const r = gate({ oldConfig: hiraganaBase, newConfig: n, profile: hiraganaProfile });
   assert.equal(r.pass, true, r.failures.join("; "));
 });
 
@@ -71,8 +82,8 @@ test("BLOCK: キー削除", () => {
 
 test("BLOCK: game-config.js 以外のコードファイル変更", () => {
   const n = bumped(); n.balance.targetLifeMs = 1200;
-  assert.equal(gate({ oldConfig: base, newConfig: n, changedFiles: ["game-config.js", "game.js"] }).pass, false);
-  assert.equal(gate({ oldConfig: base, newConfig: n, changedFiles: ["game.js"] }).pass, false);
+  assert.equal(gate({ oldConfig: base, newConfig: n, changedFiles: [profile.GAME_CONFIG_FILE, "reflex/game.js"] }).pass, false);
+  assert.equal(gate({ oldConfig: base, newConfig: n, changedFiles: ["reflex/game.js"] }).pass, false);
 });
 
 test("BLOCK: text を非文字列に変えるのは不可", () => {

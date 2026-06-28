@@ -73,6 +73,11 @@ Vercel は Git 連携で main へのマージごとに本番デプロイ。GHA �
 
 Vercel 側 env にも `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`（+任意 `FEEDBACK_ALLOW_ORIGIN`）を設定（`/api/feedback` 用）。
 
+## スキーマ移行
+
+feedback テーブルの `game` / `kana_json` 列は `npm run db:migrate`（冪等・非破壊）で追加する。
+CI の autopatch loop（6h毎）が起動時に自動実行するため、手動実行は即時有効化したい場合のみ。
+
 ## 安全設計（なぜ完全自動でも事故らないか）
 
 - 自動で触れるのは `game-config.js` の **値だけ**（キー追加・削除・ロジックは不可）。

@@ -8,7 +8,7 @@
 
 import {
   MIN_N, JUST_DOMINANT, DECISION_MARGIN, STEP,
-  BALANCE_BOUNDS, DIFFICULTY_LEVERS,
+  getProfile,
   deepGet, flatten, clamp, roundTo, isSmallTextEdit,
 } from "./config.mjs";
 
@@ -16,7 +16,7 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 const ONE_SIDED_TAIL = 0.1; // 反対票がこれ以下なら「片側偏在」とみなす
 const HIGH_DISSATISFACTION = 0.34; // justRate がこれ未満なら不満が高い（negRate>66%）
 
-export function decide({ config, currentStats, signals }) {
+export function decide({ config, currentStats, signals, profile = getProfile("reflex") }) {
   const v = config.version;
   const enoughN = currentStats.n >= MIN_N;
   const hasBugOrRequest = (signals.bugs?.length || 0) > 0 || (signals.requests?.length || 0) > 0;
@@ -53,10 +53,10 @@ export function decide({ config, currentStats, signals }) {
     if (justRate >= JUST_DOMINANT && !oneSidedHard && !oneSidedEasy) {
       balanceReason = `「ちょうど良い」が ${pct(justRate)} で多数。無変更が正解。`;
     } else if (delta >= DECISION_MARGIN || oneSidedHard) {
-      balanceDiff = easeOrHarden(config, "ease");
+      balanceDiff = easeOrHarden(config, "ease", profile);
       balanceReason = `「難しすぎ」優勢 (hard ${pct(hardRate)} / easy ${pct(easyRate)}) → 易化`;
     } else if (-delta >= DECISION_MARGIN || oneSidedEasy) {
-      balanceDiff = easeOrHarden(config, "harden");
+      balanceDiff = easeOrHarden(config, "harden", profile);
       balanceReason = `「簡単すぎ」優勢 (easy ${pct(easyRate)} / hard ${pct(hardRate)}) → 難化`;
     } else if (justRate < HIGH_DISSATISFACTION) {
       polarized = true; // 不満は高いが難/易が拮抗 → 方向が決められない
@@ -83,7 +83,7 @@ export function decide({ config, currentStats, signals }) {
     return {
       action: "escalate",
       reason: reasonBits.join(" / "),
-      issueTitle: `[reflex-lab] 人間承認が必要なフィードバック (config v${v})`,
+      issueTitle: `[reflex-lab:${profile.game}] 人間承認が必要なフィードバック (config v${v})`,
       issueBody: buildIssueBody({ v, currentStats, signals, suggestedDiff: diff, balanceReason, ratingTypos: [...ratingTypos, ...largeTypos] }),
     };
   }
@@ -104,10 +104,10 @@ export function decide({ config, currentStats, signals }) {
 
 // ── helpers ──────────────────────────────────────────────────────
 
-function easeOrHarden(config, mode) {
-  for (const lever of DIFFICULTY_LEVERS) {
+function easeOrHarden(config, mode, profile) {
+  for (const lever of profile.DIFFICULTY_LEVERS) {
     const key = lever.path.split(".").pop();
-    const bounds = BALANCE_BOUNDS[key];
+    const bounds = profile.BALANCE_BOUNDS[key];
     const from = deepGet(config, lever.path);
     if (typeof from !== "number" || !bounds) continue;
     const sign = mode === "ease" ? lever.easeSign : -lever.easeSign;

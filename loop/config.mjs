@@ -11,9 +11,6 @@ import vm from "node:vm";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(__dirname, "..");
-export const CONFIG_PATH = resolve(ROOT, "game-config.js");
-export const NOTES_PATH = resolve(ROOT, "PATCHNOTES.md");
-export const DECISION_PATH = resolve(ROOT, "decision.json");
 
 // ── 判断しきい値（decide が使う） ──
 export const MIN_N = 8; // この件数に満たない version は様子見（外れ値を実装しない）
@@ -44,8 +41,8 @@ export const TEXT_EDIT_MAX_LEN_DIFF = 6; // 文字数差がこれを超えたら
 export const TEXT_EDIT_MIN_ALLOWED = 2; // 短文でも最低これだけの編集距離は許す
 export const TEXT_EDIT_RATIO = 0.34; // 許容編集距離 = 元長 × この比率（切上げ）
 
-// ── バランス値の絶対安全域（gate と decide のクランプ） ──
-export const BALANCE_BOUNDS = {
+// ── ゲーム別プロファイル ───────────────────────────────────────
+const reflexBalanceBounds = {
   roundSeconds: [15, 90],
   targetLifeMs: [400, 3000],
   spawnIntervalMs: [300, 2000],
@@ -55,19 +52,13 @@ export const BALANCE_BOUNDS = {
   comboBonus: [0, 200],
 };
 
-// 難易度シグナルで自動調整してよいレバーと「易化方向の符号」。
-// 易化 = この符号方向に動かす（難化はその逆）。優先順に並べる。
-// ★ここに無い balance キー（hitScore/missPenalty/comboBonus/roundSeconds=スコア体系）は
-//   難易度と無関係なので自動変更を禁止する（gate が DIFFICULTY_LEVER_PATHS で強制）。
-export const DIFFICULTY_LEVERS = [
+const reflexDifficultyLevers = [
   { path: "balance.targetLifeMs", easeSign: +1, roundTo: 10 }, // 猶予を延ばすと易しい
   { path: "balance.targetSizePx", easeSign: +1, roundTo: 2 }, // 的を大きくすると易しい
   { path: "balance.spawnIntervalMs", easeSign: +1, roundTo: 10 }, // 間隔を空けると易しい
 ];
-export const DIFFICULTY_LEVER_PATHS = new Set(DIFFICULTY_LEVERS.map((l) => l.path));
 
-// game.js が読む契約。verify がこの存在/型を担保する（自動パッチでの破壊を検知）。
-export const REQUIRED_SHAPE = {
+const reflexRequiredShape = {
   version: "number",
   "balance.roundSeconds": "number",
   "balance.targetLifeMs": "number",
@@ -93,6 +84,147 @@ export const REQUIRED_SHAPE = {
   "theme.accentDim": "string",
   "theme.bg": "string",
 };
+
+const hiraganaBalanceBounds = {
+  distractorSimilarity: [0, 1],
+  autoAdvanceMs: [600, 3000],
+  weakBoost: [1, 3],
+  choices: [2, 4],
+  questionsPerSession: [5, 20],
+  newKanaBoost: [1, 3],
+  wrongLockMs: [200, 1500],
+  retryHintDelayMs: [600, 3000],
+  "rows.a": [0, 1], "rows.ka": [0, 1], "rows.sa": [0, 1], "rows.ta": [0, 1], "rows.na": [0, 1],
+  "rows.ha": [0, 1], "rows.ma": [0, 1], "rows.ya": [0, 1], "rows.ra": [0, 1], "rows.wa": [0, 1],
+};
+
+const hiraganaDifficultyLevers = [
+  { path: "balance.distractorSimilarity", easeSign: -1, roundTo: 0.05 },
+  { path: "balance.autoAdvanceMs", easeSign: +1, roundTo: 50 },
+  { path: "balance.weakBoost", easeSign: -1, roundTo: 0.1 },
+];
+
+const hiraganaRequiredShape = {
+  version: "number",
+  "balance.distractorSimilarity": "number",
+  "balance.autoAdvanceMs": "number",
+  "balance.weakBoost": "number",
+  "balance.choices": "number",
+  "balance.questionsPerSession": "number",
+  "balance.newKanaBoost": "number",
+  "balance.wrongLockMs": "number",
+  "balance.retryHintDelayMs": "number",
+  "balance.rows.a": "number",
+  "balance.rows.ka": "number",
+  "balance.rows.sa": "number",
+  "balance.rows.ta": "number",
+  "balance.rows.na": "number",
+  "balance.rows.ha": "number",
+  "balance.rows.ma": "number",
+  "balance.rows.ya": "number",
+  "balance.rows.ra": "number",
+  "balance.rows.wa": "number",
+  "text.title": "string",
+  "text.startButton": "string",
+  "text.replayButton": "string",
+  "text.retryButton": "string",
+  "text.homeButton": "string",
+  "text.resultPrefix": "string",
+  "text.feedbackHeading": "string",
+  "text.feedbackThanks": "string",
+  "text.ratings.easy": "string",
+  "text.ratings.just": "string",
+  "text.ratings.hard": "string",
+  "theme.bg": "string",
+  "theme.card": "string",
+  "theme.cardText": "string",
+  "theme.accent": "string",
+  "theme.accentDim": "string",
+  "theme.correct": "string",
+  "theme.correctHalo": "string",
+  "theme.hanamaru": "string",
+  "theme.dim": "string",
+};
+
+function makeProfile({
+  game,
+  label,
+  gameConfigFile,
+  patchnotesFile,
+  decisionFile,
+  seedFile,
+  balanceBounds,
+  difficultyLevers,
+  requiredShape,
+  integerKeys,
+  textMax = TEXT_MAX,
+  minKanaSeen,
+  weakT,
+}) {
+  return {
+    game,
+    label,
+    GAME_CONFIG_FILE: gameConfigFile,
+    PATCHNOTES_FILE: patchnotesFile,
+    DECISION_FILE: decisionFile,
+    SEED_FILE: seedFile,
+    CONFIG_PATH: resolve(ROOT, gameConfigFile),
+    NOTES_PATH: resolve(ROOT, patchnotesFile),
+    DECISION_PATH: resolve(ROOT, decisionFile),
+    BALANCE_BOUNDS: balanceBounds,
+    DIFFICULTY_LEVERS: difficultyLevers,
+    DIFFICULTY_LEVER_PATHS: new Set(difficultyLevers.map((l) => l.path)),
+    REQUIRED_SHAPE: requiredShape,
+    INTEGER_KEYS: integerKeys ?? [],
+    TEXT_MAX: textMax,
+    MIN_KANA_SEEN: minKanaSeen,
+    WEAK_T: weakT,
+  };
+}
+
+export const PROFILES = {
+  reflex: makeProfile({
+    game: "reflex",
+    label: "瞬発ラボ",
+    gameConfigFile: "reflex/game-config.js",
+    patchnotesFile: "reflex/PATCHNOTES.md",
+    decisionFile: "reflex/decision.json",
+    seedFile: "reflex/seed-feedback.json",
+    balanceBounds: reflexBalanceBounds,
+    difficultyLevers: reflexDifficultyLevers,
+    requiredShape: reflexRequiredShape,
+  }),
+  hiragana: makeProfile({
+    game: "hiragana",
+    label: "ひらがな おとあて",
+    gameConfigFile: "hiragana/game-config.js",
+    patchnotesFile: "hiragana/PATCHNOTES.md",
+    decisionFile: "hiragana/decision.json",
+    seedFile: "hiragana/seed-feedback.json",
+    balanceBounds: hiraganaBalanceBounds,
+    difficultyLevers: hiraganaDifficultyLevers,
+    requiredShape: hiraganaRequiredShape,
+    integerKeys: ["balance.choices", "balance.questionsPerSession"],
+    minKanaSeen: 4,
+    weakT: 0.6,
+  }),
+};
+
+export function getProfile(game = "reflex") {
+  const key = String(game || "reflex").trim();
+  const profile = PROFILES[key];
+  if (!profile) throw new Error(`未知の game: ${game}`);
+  return profile;
+}
+
+const DEFAULT_PROFILE = PROFILES.reflex;
+export const CONFIG_PATH = DEFAULT_PROFILE.CONFIG_PATH;
+export const NOTES_PATH = DEFAULT_PROFILE.NOTES_PATH;
+export const DECISION_PATH = DEFAULT_PROFILE.DECISION_PATH;
+export const BALANCE_BOUNDS = DEFAULT_PROFILE.BALANCE_BOUNDS;
+export const DIFFICULTY_LEVERS = DEFAULT_PROFILE.DIFFICULTY_LEVERS;
+export const DIFFICULTY_LEVER_PATHS = DEFAULT_PROFILE.DIFFICULTY_LEVER_PATHS;
+export const REQUIRED_SHAPE = DEFAULT_PROFILE.REQUIRED_SHAPE;
 
 // ── config 入出力 ──────────────────────────────────────────────
 

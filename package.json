@@ -7,10 +7,11 @@
   "scripts": {
     "serve": "python3 -m http.server 5173",
     "loop": "node loop/run.mjs --apply",
-    "loop:dry": "node loop/run.mjs --dry-run --seed seed-feedback.json",
+    "loop:dry": "node loop/run.mjs --dry-run --seed reflex/seed-feedback.json",
     "loop:dry:live": "node loop/run.mjs --dry-run",
     "test": "node --test loop/*.test.mjs",
-    "db:schema": "turso db shell \"$TURSO_DB_NAME\" < db/schema.sql"
+    "db:schema": "turso db shell \"$TURSO_DB_NAME\" < db/schema.sql",
+    "db:migrate": "node db/migrate.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

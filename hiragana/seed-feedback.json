@@ -1,0 +1,12 @@
+[
+  { "ts": "2026-06-28T10:00:00.000Z", "configVersion": 1, "rating": "hard", "comment": "まぎらわしい字が多い", "score": 2, "game": "hiragana", "kana": { "a": { "seen": 4, "correct": 1 } } },
+  { "ts": "2026-06-28T10:01:00.000Z", "configVersion": 1, "rating": "hard", "comment": "むずかしい", "score": 3, "game": "hiragana", "kana": { "shi": { "seen": 3, "correct": 0 } } },
+  { "ts": "2026-06-28T10:02:00.000Z", "configVersion": 1, "rating": "just", "comment": "", "score": 5, "game": "hiragana", "kana": {} },
+  { "ts": "2026-06-28T10:03:00.000Z", "configVersion": 1, "rating": "hard", "comment": "もう少しゆっくり", "score": 2, "game": "hiragana", "kana": {} },
+  { "ts": "2026-06-28T10:04:00.000Z", "configVersion": 1, "rating": "hard", "comment": "", "score": 3, "game": "hiragana", "kana": {} },
+  { "ts": "2026-06-28T10:05:00.000Z", "configVersion": 1, "rating": "easy", "comment": "できた", "score": 7, "game": "hiragana", "kana": {} },
+  { "ts": "2026-06-28T10:06:00.000Z", "configVersion": 1, "rating": "hard", "comment": "似た字がむずかしい", "score": 2, "game": "hiragana", "kana": {} },
+  { "ts": "2026-06-28T10:07:00.000Z", "configVersion": 1, "rating": "just", "comment": "", "score": 5, "game": "hiragana", "kana": {} },
+  { "ts": "2026-06-28T10:08:00.000Z", "configVersion": 1, "rating": "hard", "comment": "テンポがはやい", "score": 3, "game": "hiragana", "kana": {} },
+  { "ts": "2026-06-28T10:09:00.000Z", "configVersion": 1, "rating": "hard", "comment": "", "score": 2, "game": "hiragana", "kana": {} }
+]
