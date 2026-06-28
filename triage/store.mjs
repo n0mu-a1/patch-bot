@@ -26,6 +26,16 @@ export async function listReports({ status = null } = {}) {
   return out;
 }
 
+// 単一レコードを pathname で取得（ボタン承認エンドポイントが該当報告だけ読む用）。
+export async function getReport(pathname) {
+  const page = await list({ prefix: pathname, limit: 1 });
+  const b = page.blobs.find((x) => x.pathname === pathname) || page.blobs[0];
+  if (!b) return null;
+  const res = await fetch(b.downloadUrl || b.url, { cache: "no-store" });
+  if (!res.ok) return null;
+  try { return await res.json(); } catch { return null; }
+}
+
 // 同一 pathname へ上書き保存（addRandomSuffix:false なので冪等に更新できる）。
 export async function updateReport(pathname, record) {
   await put(pathname, JSON.stringify(record, null, 2), {

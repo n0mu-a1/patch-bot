@@ -9,6 +9,19 @@
 export const APPROVE_EMOJI = "✅";
 export const REJECT_EMOJI = "❌";
 
+// ボタン即時承認用。custom_id = `pb:<action>:<blob pathname>`（Discord上限100文字）。
+// pathname は reports/<app>/<日付>/<id>.json で ~60 文字に収まる。
+export const CUSTOM_ID_PREFIX = "pb";
+export function approvalButtons(pathname) {
+  return [{
+    type: 1, // action row
+    components: [
+      { type: 2, style: 3, label: "✅ 承認", custom_id: `${CUSTOM_ID_PREFIX}:approve:${pathname}` },
+      { type: 2, style: 4, label: "❌ 却下", custom_id: `${CUSTOM_ID_PREFIX}:reject:${pathname}` },
+    ],
+  }];
+}
+
 export function envKey(prefix, app) {
   return `${prefix}_${String(app).toUpperCase().replace(/-/g, "_")}`;
 }

@@ -2,8 +2,8 @@
 
 import { listReports, updateReport } from "./store.mjs";
 import { draftFix } from "./draft.mjs";
-import { postMessage, addReaction } from "./discord.mjs";
-import { channelOf, APPROVE_EMOJI, REJECT_EMOJI } from "./apps.mjs";
+import { postMessage } from "./discord.mjs";
+import { channelOf, repoOf, approvalButtons } from "./apps.mjs";
 
 function buildMessage(record, draft) {
   const lines = [
@@ -17,7 +17,7 @@ function buildMessage(record, draft) {
   const m = record.meta || {};
   const ctx = [m.screen && `画面:${m.screen}`, m.url, m.ua && m.ua.slice(0, 60)].filter(Boolean).join(" / ");
   if (ctx) lines.push(`*${ctx}*`);
-  lines.push("", `${APPROVE_EMOJI} 承認すると修正を適用 / ${REJECT_EMOJI} 拒否`);
+  lines.push("", "下の【✅ 承認】で修正を適用 /【❌ 却下】で破棄");
   return lines.join("\n");
 }
 
@@ -27,13 +27,12 @@ export async function notify({ dryRun = false } = {}) {
   for (const { pathname, record } of news) {
     const channel = channelOf(record.app);
     if (!channel) { console.warn(`[notify] ${record.app}: チャンネル未設定→スキップ (${record.id})`); skipped++; continue; }
+    const repo = repoOf(record.app); // 承認時の dispatch 先を記録（Vercel側はこれを読むだけ）
     const draft = await draftFix(record);
     const content = buildMessage(record, draft);
     if (dryRun) { console.log(`[dry] notify ${record.app}/${record.id}\n${content}\n`); sent++; continue; }
-    const messageId = await postMessage(content, channel);
-    await addReaction(messageId, APPROVE_EMOJI, channel);
-    await addReaction(messageId, REJECT_EMOJI, channel);
-    record.triage = { ...record.triage, status: "awaiting", channelId: channel, messageId, draft, notifiedAt: new Date().toISOString() };
+    const messageId = await postMessage(content, channel, approvalButtons(pathname));
+    record.triage = { ...record.triage, status: "awaiting", channelId: channel, messageId, draft, repo, notifiedAt: new Date().toISOString() };
     await updateReport(pathname, record);
     sent++;
   }

@@ -15,12 +15,13 @@ function botHeaders() {
 }
 
 // 投稿してメッセージIDを返す。リアクション承認はこのIDに紐付ける。
-export async function postMessage(content, channelId) {
+// components を渡すと承認/却下ボタン等を付与できる（ボタン方式の即時承認用）。
+export async function postMessage(content, channelId, components = null) {
   if (!channelId) throw new Error("channelId is required");
   const res = await fetch(`${API}/channels/${channelId}/messages`, {
     method: "POST",
     headers: botHeaders(),
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, ...(components ? { components } : {}) }),
   });
   if (!res.ok) throw new Error(`discord post failed: ${res.status} ${await res.text()}`);
   const m = await res.json();

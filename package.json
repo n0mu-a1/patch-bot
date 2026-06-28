@@ -17,7 +17,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
     "@libsql/client": "^0.17.3",
-    "@vercel/blob": "^0.27.3"
+    "@vercel/blob": "^0.27.3",
+    "tweetnacl": "^1.0.3"
   },
   "engines": {
     "node": ">=20"
