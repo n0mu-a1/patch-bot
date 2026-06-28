@@ -68,8 +68,22 @@ function originAllowed(origin) {
   return allow.split(",").map((s) => s.trim()).filter(Boolean).includes(origin);
 }
 
+// 対象アプリは別オリジン（patch-bot とは別ドメイン）なので CORS を返す。
+function setCors(req, res) {
+  const origin = req.headers.origin || "";
+  const allow = process.env.REPORT_ALLOW_ORIGIN;
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Origin", allow ? (originAllowed(origin) ? origin : "null") : "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
+  setCors(req, res);
+
+  if (req.method === "OPTIONS") return res.status(204).end();
 
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
