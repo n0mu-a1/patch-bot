@@ -1,41 +1,28 @@
-# 瞬発ラボ — 自律パッチループ構築タスク
+# patch-bot — タスク
 
-LOOP.md の「段階導入」を実装するチェックリスト。
+reflex-lab（反射神経ゲーム＋自律パッチループ）を、ゲームを剥がして
+「対象アプリの不具合修正ツール」に転換中。対象アプリは別リポジトリ
+（hiragana = `/Users/im/AI/hiragana`、kanji-drill = `/Users/im/AI/kanji-drill`）。
 
-## ステージ1: ゲーム＋フィードバック蓄積（土台）
-- [x] ゲーム本体（game.js / styles.css / index.html / PWA一式）
-- [x] フィードバックUI（easy/just/hard + 一言）
+## 完了
+- [x] reflex-lab → patch-bot にリネーム（GitHub repo / ローカルdir / remote）
+- [x] 瞬発ラボ（ゲーム）・あそびハブUI・同梱 hiragana を削除
+- [x] `loop/` をテンプレ化（config を `examples/` に退避、53テスト緑）
+- [x] 旧 autopatch cron(loop.yml) を撤去、CI(ci.yml = テスト実行)に置換
+- [x] `api/report.js`（承認型の収集→Blob、`app` で対象識別）を移植
+- [x] README / package.json / vercel.json をツール向けに更新
 
-## ステージ2: 収集の自動化（Turso化）
-- [x] `db/schema.sql`（feedback / patch_log テーブル）
-- [x] `api/feedback.js`（Vercel serverless：検証＋連投抑制＋Turso insert）
-- [x] `feedback.js` を POST 化（失敗時 localStorage キューで再送）
+## 自立型（既存・各アプリへ配る）
+- [ ] hiragana リポジトリの自前 loop を patch-bot/loop の最新と同期する運用を決める
+- [ ] examples の命名整理（reflex→より中立な名前にするか検討）
 
-## ステージ3: 提案→PR（Claude subagent + GHA cron）
-- [x] `loop/collect.mjs` 収集（Turso / seed）
-- [x] `loop/classify.mjs` 分類（rating集計 + Claudeでコメントから誤字/バグ/要望抽出）
-- [x] `loop/decide.mjs` 調整案（難易度→balance易化/難化、誤字→text、バグ/要望→escalate）
-- [x] `loop/gate.mjs` 安全弁（AND条件の機械判定・純関数）
-- [x] `loop/patch.mjs` 外科的テキスト置換 + version+1
-- [x] `loop/verify.mjs` 構文/形状/安全域/version 検証
-- [x] `loop/notes.mjs` パッチノート生成
-- [x] `loop/run.mjs` オーケストレーション（decision.json 出力）
-- [x] `loop/gate.test.mjs` 単体テスト（緑）
-- [x] gate 敵対検証（複数エージェントで突破試行）
-- [x] `.github/workflows/loop.yml`（cron→run→PR/issue）
+## 承認型（構築中）
+- [ ] Discord アプリ作成（bot token / public key / application id）
+- [ ] 新規報告 → Discord 通知（画像＋本文＋メタ、reports/<app>/ を列挙）
+- [ ] 承認 webhook（`api/discord-interactions.js`：署名検証＋ボタン操作）
+- [ ] 承認 → 対象アプリリポジトリへ適用するオーケストレータ（修正の出し方を設計）
+- [ ] 対象アプリ側に報告UI（画像添付）を追加（hiragana から）
 
-## ステージ4: gate内自動デプロイ（完全自動）
-- [x] gate通過パッチは main へ直接コミット（Actions の PR作成権限に依存しない）
-- [x] Vercel git 連携で main → 本番デプロイ
-- [x] 外部リソース provision（GitHub / Turso / Vercel / secrets）
-- [x] 初回 cron 実走で patch 経路を確認（v1→v2 を自動コミット、patch_log 記録）
-
-## ステージ5: パッチノート＆告知
-- [x] `loop/notes.mjs` で PATCHNOTES.md 自動更新
-- [x] `loop/announce.mjs`（x-poster 告知フック・best-effort）
-- [ ] 告知の実接続（ローカル/専用ランナーで REFLEX_ANNOUNCE=1）
-
-## 運用メモ
-- ローカル検証: `npm run loop:dry`（seed に対するドライラン）
-- テスト: `npm test`
-- 安全弁の閾値は `loop/config.mjs`（MIN_N / DECISION_MARGIN / STEP / MAX_DELTA / REGRESSION_EPS / BALANCE_BOUNDS）
+## インフラ
+- [ ] Vercel: reflex-lab-two を patch-bot サービスに流用（relink / 必要なら rename）
+- [ ] env: BLOB_READ_WRITE_TOKEN / REPORT_ALLOW_ORIGIN / Discord 各種

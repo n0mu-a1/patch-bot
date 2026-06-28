@@ -1,89 +1,61 @@
-# 瞬発ラボ (reflex-lab)
+# patch-bot
 
-本番: **https://reflex-lab-two.vercel.app** ／ リポジトリ: `n0mu-a1/reflex-lab`(private)
+リポジトリ: `n0mu-a1/patch-bot`(private)
 
-光った的を消える前にタップする30秒の反射神経ゲーム（静的PWA）。
-本当の目的は **「プレイヤーのコメント → AIが game-config.js を自動パッチ → 配信」の自律ループ** を、
-事故を起こさず完全自動で回せるかを検証する土台を作ること。
+対象アプリ（hiragana / kanji-drill 等）の**不具合を修正するためのツール**。
+2つの修正経路を提供する。元は反射神経ゲーム「瞬発ラボ(reflex-lab)」だったが、
+ゲームを剥がして修正エンジンだけを残し、patch-bot に改名した。
+
+## 2つの修正経路
+
+### ① 自立型（フィードバック → AI自動パッチ → 配信）
+プレイヤーの評価/コメントから、安全な範囲の値（balance/text/theme）だけを自動調整する。
+`loop/` がその実装で、**各対象アプリのリポジトリにテンプレとして配って app 内 cron で回す**
+（このリポジトリでは config を自動コミットしない）。
 
 ```
-収集:   Player → /api/feedback (Vercel) → Turso(feedback)
-ループ: GHA cron(6h) → loop/run.mjs
-        ① 収集(Turso)
-        ② 分類: rating集計 + Claudeでコメントから誤字/バグ/要望抽出
-        ③ 判断: 難易度→balance易化/難化、誤字→text修正、バグ/要望→人間承認
-        ④ gate(安全弁): game-config.jsのみ / balance・text・theme値のみ / ±25% / version+1 / 構文 / 回帰
-            ├ pass  → patch → 検証 → main へ直接コミット → Vercel本番デプロイ → 告知(best-effort)
-            └ fail  → GitHub issue で人間承認待ち
+収集:   Player → /api/feedback → Turso(feedback)
+ループ: loop/run.mjs（各アプリのGHA cron）
+        ① 収集 ② 分類(無料provider chain) ③ 判断 ④ gate(安全弁)
+            ├ pass → patch → verify → main へコミット → デプロイ
+            └ fail → GitHub issue で人間承認
 ```
+
+安全弁 gate の条件: `game-config.js` のみ / balance・text・theme 値のみ / ±25% /
+version+1 / 構文green / 回帰なし。1つでも外れたら escalate（人間承認）。
+
+### ② 承認型（画像つき報告 → Discord承認 → 適用）※構築中
+対象アプリのユーザーが画像つきで不具合報告 → patch-bot が収集 → Discord に通知 →
+ボタン/リアクションで承認 → 対象アプリへ適用、という人間承認フロー（漢字ドリル方式）。
+
+```
+収集:   App → /api/report → Vercel Blob (reports/<app>/<日付>/<id>.json+jpg)
+承認:   Blob列挙 → Discord通知 → 承認 → 対象リポジトリへ適用   ← 未実装
+```
+
+- 実装済: `api/report.js`（画像つき報告の収集 → Blob、`app` で対象識別）
+- 未実装: Discord 連携（通知 / 承認 webhook / 適用オーケストレータ）
 
 ## 構成
 
-| ファイル | 役割 | AI自動修正 |
-|---|---|---|
-| `index.html` / `styles.css` | 画面・見た目 | - |
-| `game.js` | ゲームロジック | ❌ 触らせない |
-| **`game-config.js`** | バランス値 / 文言 / テーマ | ✅ **自動修正ゾーン** |
-| `feedback.js` | 声を構造化して /api/feedback へ送信（失敗時ローカル再送） | - |
-| `api/feedback.js` | 収集エンドポイント（検証＋Turso insert） | - |
-| `db/schema.sql` | feedback / patch_log テーブル | - |
-| `loop/*.mjs` | 収集→分類→判断→**gate**→patch→検証→ノート | - |
-| `loop/gate.mjs` | **安全弁**（自動デプロイ許可ゾーンの機械判定・純関数） | - |
-| `.github/workflows/loop.yml` | cron→run→main直接コミット / issue起票 | - |
-| `LOOP.md` | 設計とgate条件 | - |
+| パス | 役割 |
+|---|---|
+| `loop/` | 自立型の修正エンジン＆テンプレ（gate/verify/decide/patch/classify…）。単体テスト同梱 |
+| `api/feedback.js` | 自立型の収集エンドポイント（→ Turso） |
+| `api/report.js` | 承認型の収集エンドポイント（→ Vercel Blob） |
+| `db/` | Turso スキーマ / マイグレーション |
+| `examples/` | loop が直す対象 config のサンプル（テスト・デモ用。reflex/hiragana の2形状） |
 
-## ローカルで動かす
+## 開発
 
 ```sh
-cd /Users/im/AI/reflex-lab
-npm install
-npm run serve         # → http://localhost:5173 でゲーム
-npm test              # gate/verify/patch の単体テスト
-npm run loop:dry      # seed-feedback.json に対するループのドライラン
+npm test            # loop の安全弁テスト
+npm run loop:dry    # examples/reflex の seed でドライラン
 ```
 
-`loop:dry` は外部リソース不要。`game-config.js` は書き換えず、判断結果と差分プレビューだけ出す。
+## デプロイ
 
-## ループの動かし方
-
-- **ドライラン（安全・既定）**: `node loop/run.mjs --dry-run --seed seed-feedback.json`
-- **本番適用（CI）**: `node loop/run.mjs --apply`（Turso の env が要る。`game-config.js` を更新し `decision.json` を出力）
-- 出力 `decision.json` を `loop.yml` が読み、`patch`(applied=true)→main直接コミット / `escalate`→issue / `noop`→何もしない。
-  - 監査証跡は main のコミット + `PATCHNOTES.md` + Turso `patch_log`。PR自動マージ運用にしたい場合は、リポジトリ設定で「GitHub Actions に PR の作成・承認を許可」をON にし、`loop.yml` の patch 分岐を PR フローへ戻す。
-
-安全弁の閾値はすべて `loop/config.mjs`（`MIN_N` / `DECISION_MARGIN` / `STEP` / `MAX_DELTA` / `REGRESSION_EPS` / `BALANCE_BOUNDS`）。
-
-## デプロイ / 必要な secret
-
-Vercel は Git 連携で main へのマージごとに本番デプロイ。GHA に以下の secret を設定：
-
-| secret | 用途 |
-|---|---|
-| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | フィードバック収集の読み（ループ） |
-| `GROQ_API_KEY` | コメントNLP（**任意・無料枠**。未設定でもキー不要の heuristic で動く） |
-| `ANTHROPIC_API_KEY` | コメントNLP（**任意・有料**。`REFLEX_NLP_PROVIDER=anthropic` を明示した時だけ使用） |
-
-### コメント分類のコスト方針（テスト段階は無料）
-
-既定（auto）は **無料の経路しか呼ばない**。優先順は次の通りで、LLM 呼び出しが失敗しても heuristic に自動フォールバックするので止まらない／課金しない。
-
-- `GROQ_API_KEY` あり → **Groq 無料枠**でLLM分類（`llama-3.3-70b-versatile`）
-- キー無し → **heuristic**（キーワード判定・キー不要・$0・LLM無しなのでプロンプトインジェクション面ゼロ）
-- 有料の Anthropic は Variables `REFLEX_NLP_PROVIDER=anthropic` を設定した時だけ。`heuristic`/`off` で固定も可。
-
-Vercel 側 env にも `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`（+任意 `FEEDBACK_ALLOW_ORIGIN`）を設定（`/api/feedback` 用）。
-
-## スキーマ移行
-
-feedback テーブルの `game` / `kana_json` 列は `npm run db:migrate`（冪等・非破壊）で追加する。
-CI の autopatch loop（6h毎）が起動時に自動実行するため、手動実行は即時有効化したい場合のみ。
-
-## 安全設計（なぜ完全自動でも事故らないか）
-
-- 自動で触れるのは `game-config.js` の **値だけ**（キー追加・削除・ロジックは不可）。
-- バランス変更は **1回±25%以内** かつ **絶対安全域内**、`version` は厳密に **+1**。
-- 構文/形状/想定外キーを `loop/verify.mjs` がVMサンドボックスで検証（注入コードはここで弾く）。
-- gate を1つでも外したら **自動デプロイせず issue で人間承認**。
-- 直近の自動パッチでネガ率が悪化していたら **自動モードを止める**（回帰サーキットブレーカ）。
-
-詳細とgate条件は `LOOP.md`、進捗は `task.md`。
+Vercel プロジェクト（収集API＋承認サービスの置き場）。
+必要な env: `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`（feedback）、
+`BLOB_READ_WRITE_TOKEN`（report）、`REPORT_ALLOW_ORIGIN`（任意・対象アプリのオリジン）。
+Discord 連携の env は実装時に追加。

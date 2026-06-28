@@ -1,0 +1,23 @@
+name: patch-bot CI
+
+# patch-bot はツール（修正エンジン＋テンプレ）。自立ループの cron は各対象アプリの
+# リポジトリ内で回す（このリポジトリには game-config を自動コミットしない）。
+# ここではテンプレ loop/ の安全弁（gate/verify/decide/patch）が緑であることだけ担保する。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --no-audit --no-fund
+      - run: npm test

@@ -4,7 +4,8 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "functions": {
-    "api/feedback.js": { "maxDuration": 10 }
+    "api/feedback.js": { "maxDuration": 10 },
+    "api/report.js": { "maxDuration": 10 }
   },
   "headers": [
     {
