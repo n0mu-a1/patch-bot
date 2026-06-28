@@ -4,10 +4,10 @@ name: patch-bot triage (承認型)
 # 自立型(loop) とは独立。常駐 bot 不要（REST ポーリング方式）。
 
 on:
-  # collection-first: まず報告を溜める段階なので定期実行は停止中。
-  # Discord 通知・承認を始めるときに schedule を復活させる。
-  # schedule:
-  #   - cron: "*/15 * * * *"
+  # 承認フロー稼働中: 6時間ごとに新規報告を通知＋承認/拒否をポーリング解決。
+  # 頻度を変えたいときはこの cron を編集（例 "0 */3 * * *" で3時間ごと）。
+  schedule:
+    - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
 concurrency:
