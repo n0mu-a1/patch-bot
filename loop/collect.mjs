@@ -23,18 +23,23 @@ export function collectFromSeed(path) {
   return arr.map(normalize);
 }
 
-export async function collectFromDb(db, limit = 2000) {
-  const res = await db.execute({
-    sql: `SELECT ts, config_version, rating, comment, score
-          FROM feedback ORDER BY id DESC LIMIT ?`,
-    args: [limit],
-  });
-  return res.rows.map(normalize);
+export async function collectFromDb(db, game = "reflex", limit = 2000) {
+  try {
+    const res = await db.execute({
+      sql: `SELECT ts, config_version, rating, comment, score
+            FROM feedback WHERE game = ? ORDER BY id DESC LIMIT ?`,
+      args: [game, limit],
+    });
+    return res.rows.map(normalize);
+  } catch (e) {
+    if (/no such column/i.test(String(e?.message || e))) return [];
+    throw e;
+  }
 }
 
-export async function collect({ seedPath, db }) {
+export async function collect({ seedPath, db, game = "reflex" }) {
   if (seedPath) return collectFromSeed(seedPath);
-  if (db) return collectFromDb(db);
+  if (db) return collectFromDb(db, game);
   return [];
 }
 

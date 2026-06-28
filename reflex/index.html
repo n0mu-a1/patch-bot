@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1120" />
+  <title>瞬発ラボ</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="app">
+    <!-- HUD -->
+    <header id="hud" class="hidden">
+      <div class="hud-item"><span class="hud-label">TIME</span><span id="hud-time">30</span></div>
+      <div class="hud-item"><span class="hud-label">SCORE</span><span id="hud-score">0</span></div>
+      <div class="hud-item"><span class="hud-label">COMBO</span><span id="hud-combo">0</span></div>
+    </header>
+
+    <!-- プレイフィールド -->
+    <section id="field" class="hidden"></section>
+
+    <!-- スタート画面 -->
+    <section id="screen-start" class="screen">
+      <h1 id="title"></h1>
+      <p id="tagline" class="muted"></p>
+      <p id="best-start" class="best"></p>
+      <button id="btn-start" class="btn primary"></button>
+      <p class="version">config v<span id="cfg-ver"></span></p>
+    </section>
+
+    <!-- 結果画面 -->
+    <section id="screen-result" class="screen hidden">
+      <p class="result-label" id="result-label"></p>
+      <p id="result-score" class="result-score">0</p>
+      <p id="result-best" class="best"></p>
+
+      <!-- フィードバック導線（収集Agentが読む構造化データの入口） -->
+      <div id="feedback">
+        <p id="fb-heading"></p>
+        <div class="fb-ratings">
+          <button class="fb-rate" data-rate="easy"></button>
+          <button class="fb-rate" data-rate="just"></button>
+          <button class="fb-rate" data-rate="hard"></button>
+        </div>
+        <textarea id="fb-comment" rows="2"></textarea>
+        <button id="fb-submit" class="btn"></button>
+        <p id="fb-thanks" class="thanks hidden"></p>
+      </div>
+
+      <button id="btn-retry" class="btn primary"></button>
+    </section>
+  </main>
+
+  <script src="game-config.js"></script>
+  <script src="feedback.js"></script>
+  <script src="game.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    }
+  </script>
+</body>
+</html>

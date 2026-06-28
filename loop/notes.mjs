@@ -5,9 +5,10 @@
 const MARKER = "<!-- AUTO-NOTES -->";
 const pct = (x) => `${Math.round((x || 0) * 100)}%`;
 
-export function buildNotes({ fromVersion, toVersion, diff, summary, stats, when }) {
+export function buildNotes({ fromVersion, toVersion, diff, summary, stats, when, gameLabel }) {
   const date = when || new Date().toISOString().slice(0, 10);
   const lines = [`## v${toVersion} — ${date}`, ""];
+  if (gameLabel) lines.push(`対象: ${gameLabel}`, "");
   if (summary) lines.push(`> ${summary}`, "");
   lines.push("**変更**");
   for (const d of diff) {

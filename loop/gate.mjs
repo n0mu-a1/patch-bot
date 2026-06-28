@@ -11,21 +11,28 @@
 // ====================================================================
 
 import {
-  flatten, BALANCE_BOUNDS, MAX_DELTA, MAX_BALANCE_CHANGES, REGRESSION_EPS,
-  DIFFICULTY_LEVER_PATHS, THEME_COLOR_RE, TEXT_MAX, DANGEROUS_TEXT_RE, isSmallTextEdit,
+  flatten, getProfile, MAX_DELTA, MAX_BALANCE_CHANGES, REGRESSION_EPS,
+  THEME_COLOR_RE, DANGEROUS_TEXT_RE, isSmallTextEdit,
 } from "./config.mjs";
 
-const ALLOWED_DOCS = new Set(["PATCHNOTES.md", "decision.json", "task.md"]);
 const ALLOWED_ZONES = ["balance.", "text.", "theme."];
 const pct = (x) => `${Math.round(x * 100)}%`;
 
-export function gate({ oldConfig, newConfig, changedFiles = ["game-config.js"], regression = { available: false } }) {
+export function gate({
+  oldConfig,
+  newConfig,
+  changedFiles,
+  regression = { available: false },
+  profile = getProfile("reflex"),
+}) {
   const failures = [];
+  const allowedDocs = new Set([profile.PATCHNOTES_FILE, profile.DECISION_FILE, "task.md"]);
+  const files = changedFiles || [profile.GAME_CONFIG_FILE];
 
   // 1) 変更ファイルは game-config.js のみ
-  const nonDoc = [...changedFiles].filter((f) => !ALLOWED_DOCS.has(f));
-  if (!(nonDoc.length === 1 && nonDoc[0] === "game-config.js")) {
-    failures.push(`変更ファイルが game-config.js 単独でない: [${nonDoc.join(", ") || "なし"}]`);
+  const nonDoc = [...files].filter((f) => !allowedDocs.has(f));
+  if (!(nonDoc.length === 1 && nonDoc[0] === profile.GAME_CONFIG_FILE)) {
+    failures.push(`変更ファイルが ${profile.GAME_CONFIG_FILE} 単独でない: [${nonDoc.join(", ") || "なし"}]`);
   }
 
   const oldFlat = flatten(oldConfig);
@@ -58,11 +65,11 @@ export function gate({ oldConfig, newConfig, changedFiles = ["game-config.js"], 
     if (key.startsWith("balance.")) {
       balanceChanges++;
       // 4a) 自動で動かしてよいのは難易度レバーだけ（スコア体系は人間承認）
-      if (!DIFFICULTY_LEVER_PATHS.has(key)) {
+      if (!profile.DIFFICULTY_LEVER_PATHS.has(key)) {
         failures.push(`難易度レバー外のbalance自動変更は不可（人間承認へ）: ${key}`);
       }
       const leaf = key.split(".").pop();
-      const bounds = BALANCE_BOUNDS[leaf];
+      const bounds = profile.BALANCE_BOUNDS[leaf];
       if (typeof ov !== "number" || typeof nv !== "number" || !Number.isFinite(nv)) {
         failures.push(`バランス値が数値でない: ${key} ${ov}→${nv}`);
         continue;
@@ -90,8 +97,8 @@ export function gate({ oldConfig, newConfig, changedFiles = ["game-config.js"], 
       }
       if (typeof ov !== "string" || typeof nv !== "string") {
         failures.push(`文言は文字列のみ: ${key}`);
-      } else if (nv.length > TEXT_MAX) {
-        failures.push(`文言が長すぎる(>${TEXT_MAX}): ${key}`);
+      } else if (nv.length > profile.TEXT_MAX) {
+        failures.push(`文言が長すぎる(>${profile.TEXT_MAX}): ${key}`);
       } else if (/[<>]/.test(nv)) {
         failures.push(`文言にHTMLメタ文字を含む（人間承認へ）: ${key}`);
       } else if (DANGEROUS_TEXT_RE.test(nv)) {

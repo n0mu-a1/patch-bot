@@ -33,6 +33,12 @@ jobs:
       - name: Install deps
         run: npm ci --no-audit --no-fund
 
+      - name: Migrate DB (idempotent)
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: node db/migrate.mjs
+
       - name: Run autopatch loop
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
@@ -43,48 +49,59 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           REFLEX_NLP_PROVIDER: ${{ vars.REFLEX_NLP_PROVIDER }}
-        run: node loop/run.mjs --apply
+        run: |
+          for g in reflex hiragana; do
+            node loop/run.mjs --game "$g" --apply || true
+          done
 
       - name: Act on decision
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ ! -f decision.json ]; then echo "decision.json なし→何もしない"; exit 0; fi
-          ACTION=$(jq -r '.action // "noop"' decision.json)
-          APPLIED=$(jq -r '.applied // false' decision.json)
-          echo "action=$ACTION applied=$APPLIED"
+          changed=false
 
-          if [ "$ACTION" = "patch" ] && [ "$APPLIED" != "true" ]; then
-            echo "patch だが applied≠true（ファイル未書込）→ git操作せず終了"; exit 0
-          fi
+          for f in reflex/decision.json hiragana/decision.json; do
+            if [ ! -f "$f" ]; then echo "$f なし→スキップ"; continue; fi
+            GAME=$(jq -r '.game // "unknown"' "$f")
+            ACTION=$(jq -r '.action // "noop"' "$f")
+            APPLIED=$(jq -r '.applied // false' "$f")
+            echo "$GAME: action=$ACTION applied=$APPLIED"
 
-          if [ "$ACTION" = "patch" ]; then
-            TO=$(jq -r '.toVersion' decision.json)
-            SUMMARY=$(jq -r '.summary // ""' decision.json)
-            git config user.name  "reflex-lab-bot"
-            git config user.email "actions@users.noreply.github.com"
-            git add game-config.js PATCHNOTES.md
-            if git diff --cached --quiet; then
-              echo "差分なし→スキップ"; exit 0
+            if [ "$ACTION" = "patch" ] && [ "$APPLIED" = "true" ]; then
+              changed=true
+            elif [ "$ACTION" = "patch" ]; then
+              echo "$GAME: patch だが applied≠true（ファイル未書込）→ git操作なし"
+            elif [ "$ACTION" = "escalate" ]; then
+              TITLE=$(jq -r --arg g "$GAME" '.issueTitle // "[reflex-lab:" + $g + "] 人間承認が必要"' "$f")
+              jq -r '.issueBody // .reason // ""' "$f" > "/tmp/issue-body-${GAME}.md"
+              gh issue create --title "$TITLE" --body-file "/tmp/issue-body-${GAME}.md" --label "autopatch" || \
+                gh issue create --title "$TITLE" --body-file "/tmp/issue-body-${GAME}.md"
+              echo "$GAME: issue 起票（人間承認待ち）"
+            else
+              echo "$GAME noop: $(jq -r '.reason // ""' "$f")"
             fi
-            git commit \
-              -m "auto: balance/text patch → config v${TO}" \
-              -m "${SUMMARY}" \
-              -m "Co-Authored-By: reflex-lab autopatch loop <actions@users.noreply.github.com>"
-            # gate/verify を通過した小修正 → main へ直接コミット → Vercel が本番デプロイ。
-            # 監査証跡は main のコミット + PATCHNOTES.md + Turso patch_log。
-            # （PR自動マージ運用にしたい場合は repo設定で「Actions に PR作成・承認を許可」をON）
-            git push origin HEAD:main
-            echo "main へコミット → Vercel が本番デプロイ (config v${TO})"
+          done
 
-          elif [ "$ACTION" = "escalate" ]; then
-            TITLE=$(jq -r '.issueTitle // "[reflex-lab] 人間承認が必要"' decision.json)
-            jq -r '.issueBody // .reason // ""' decision.json > /tmp/issue-body.md
-            gh issue create --title "$TITLE" --body-file /tmp/issue-body.md --label "autopatch" || \
-              gh issue create --title "$TITLE" --body-file /tmp/issue-body.md
-            echo "issue 起票（人間承認待ち）"
-
-          else
-            echo "noop: $(jq -r '.reason // ""' decision.json)"
+          if [ "$changed" != "true" ]; then
+            echo "patch差分なし→スキップ"; exit 0
           fi
+
+          git config user.name  "reflex-lab-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reflex/game-config.js reflex/PATCHNOTES.md \
+                  hiragana/game-config.js hiragana/PATCHNOTES.md
+          if git diff --cached --quiet; then
+            echo "差分なし→スキップ"; exit 0
+          fi
+          SUMMARY=$(jq -r '.summary // empty' reflex/decision.json 2>/dev/null || true)
+          HIRA_SUMMARY=$(jq -r '.summary // empty' hiragana/decision.json 2>/dev/null || true)
+          git commit \
+            -m "auto: balance/text patch for games" \
+            -m "reflex: ${SUMMARY:-no change}" \
+            -m "hiragana: ${HIRA_SUMMARY:-no change}" \
+            -m "Co-Authored-By: reflex-lab autopatch loop <actions@users.noreply.github.com>"
+          # gate/verify を通過した小修正 → main へ直接コミット → Vercel が本番デプロイ。
+          # 監査証跡は main のコミット + PATCHNOTES.md + Turso patch_log。
+          git push origin HEAD:main
+          echo "main へコミット → Vercel が本番デプロイ"

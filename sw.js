@@ -1,32 +1,50 @@
-// シンプルなオフラインキャッシュ。配信のたびに CACHE 名を上げると更新される。
-const CACHE = "reflexlab-v1";
+const CACHE = "asobi-hub-v1";
+const CACHE_PREFIX = "asobi-hub-";
 const ASSETS = [
-  ".", "index.html", "styles.css",
-  "game-config.js", "feedback.js", "game.js",
-  "manifest.webmanifest", "icon.svg",
+  "./",
+  "index.html",
+  "styles.css",
+  "manifest.webmanifest",
+  "icon.svg",
 ];
+const SHELL_PATHS = new Set(["/", "/index.html", "/styles.css", "/manifest.webmanifest", "/icon.svg"]);
+const GAME_PREFIXES = ["/reflex/", "/hiragana/"];
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
   self.skipWaiting();
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) =>
-    Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
-  self.clients.claim();
-});
-
-// network-first: 更新を取りに行き、失敗時のみキャッシュ（パッチ反映を速くするため）
-self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
-  e.respondWith(
-    fetch(e.request)
-      .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-        return res;
-      })
-      .catch(() => caches.match(e.request))
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE)
+          .map((key) => caches.delete(key)),
+      ))
+      .then(() => self.clients.claim()),
   );
 });
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+
+  const url = new URL(event.request.url);
+  if (url.origin !== location.origin) return;
+  if (GAME_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) return;
+  if (!SHELL_PATHS.has(url.pathname)) return;
+
+  event.respondWith(networkFirst(event.request));
+});
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE);
+  try {
+    const response = await fetch(request);
+    if (response.ok) cache.put(request, response.clone());
+    return response;
+  } catch {
+    return caches.match(request);
+  }
+}

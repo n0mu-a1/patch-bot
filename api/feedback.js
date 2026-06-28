@@ -1,7 +1,7 @@
 // ====================================================================
 // api/feedback.js — フィードバック収集エンドポイント (Vercel Serverless / Node)
 //
-// フロント feedback.js から { ts, configVersion, rating, comment, score } を
+// フロント feedback.js から { ts, configVersion, rating, comment, score, game, kana } を
 // POST で受け、検証 → Turso(feedback テーブル)へ insert する「収集の自動化」層。
 // 収集Agent(loop/collect.mjs)はこのテーブルを読む。
 // ====================================================================
@@ -19,8 +19,10 @@ function db() {
 }
 
 const RATINGS = new Set(["easy", "just", "hard"]);
+const GAMES = new Set(["reflex", "hiragana"]);
 const RATE_WINDOW_SEC = 120; // 同一端末から短時間の連投を抑える窓
 const RATE_MAX = 6; // 窓内の許容件数
+const KANA_JSON_MAX = 2000;
 
 function clientHash(req) {
   const xff = req.headers["x-forwarded-for"] || "";
@@ -50,7 +52,8 @@ export default async function handler(req, res) {
   const allow = process.env.FEEDBACK_ALLOW_ORIGIN;
   if (allow) {
     const origin = req.headers.origin || "";
-    if (origin && origin !== allow) {
+    const origins = allow.split(",").map((v) => v.trim()).filter(Boolean);
+    if (origin && !origins.includes(origin)) {
       return res.status(403).json({ ok: false, error: "forbidden_origin" });
     }
   }
@@ -66,6 +69,11 @@ export default async function handler(req, res) {
   const score = Math.max(0, Math.min(1_000_000, Math.trunc(Number(body.score) || 0)));
   const configVersion = Math.max(1, Math.trunc(Number(body.configVersion) || 1));
   const ts = typeof body.ts === "string" && body.ts.length <= 40 ? body.ts : new Date().toISOString();
+  const requestedGame = String(body.game || "");
+  const game = GAMES.has(requestedGame) ? requestedGame : "reflex";
+  const kanaJson = game === "hiragana" && body.kana && typeof body.kana === "object" && !Array.isArray(body.kana)
+    ? JSON.stringify(body.kana).slice(0, KANA_JSON_MAX)
+    : null;
   const uaHash = clientHash(req);
 
   try {
@@ -81,11 +89,25 @@ export default async function handler(req, res) {
       return res.status(429).json({ ok: false, error: "rate_limited" });
     }
 
-    await client.execute({
-      sql: `INSERT INTO feedback (ts, config_version, rating, comment, score, ua_hash)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [ts, configVersion, rating, comment, score, uaHash],
-    });
+    try {
+      await client.execute({
+        sql: `INSERT INTO feedback (ts, config_version, rating, comment, score, game, kana_json, ua_hash)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [ts, configVersion, rating, comment, score, game, kanaJson, uaHash],
+      });
+    } catch (e) {
+      if (/no such column/i.test(String(e?.message || e))) {
+        // 本番DB未マイグレーション時の暫定動作: 旧スキーマへ保存（game/kana は次回マイグレーションで既定 'reflex' に backfill）
+        console.warn("[feedback] columns missing; falling back to legacy schema. Run db:migrate.");
+        await client.execute({
+          sql: `INSERT INTO feedback (ts, config_version, rating, comment, score, ua_hash)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [ts, configVersion, rating, comment, score, uaHash],
+        });
+      } else {
+        throw e;
+      }
+    }
 
     return res.status(200).json({ ok: true });
   } catch (err) {

@@ -51,7 +51,7 @@ function bumpVersion(text) {
 }
 
 // 差分配列を適用した新テキストを返す（version も +1）。
-export function computePatch(oldText, diff) {
+export function computePatch(oldText, diff, _options = {}) {
   let text = oldText;
   for (const d of diff) {
     const key = d.path.split(".").pop();
