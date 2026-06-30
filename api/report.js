@@ -60,6 +60,37 @@ function sanitizeMeta(meta) {
   return out;
 }
 
+// 報告保存直後に triage WF を即キック（リアルタイム通知化）。cron(6h) を待たず数分で Discord 通知。
+// 失敗しても報告自体は成功扱い（best-effort）。token 未設定なら no-op（従来どおり cron が拾う）。
+async function kickTriage() {
+  const token = process.env.GH_DISPATCH_TOKEN;
+  if (!token) return; // 未設定なら静かに諦める（cron フォールバック）
+  const repo = (process.env.TRIAGE_REPO || "n0mu-a1/patch-bot").trim();
+  const wf = process.env.TRIAGE_WORKFLOW || "triage.yml";
+  const ref = process.env.TRIAGE_REF || "main";
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/actions/workflows/${wf}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+          "User-Agent": "patch-bot-report",
+        },
+        body: JSON.stringify({ ref }),
+      }
+    );
+    if (!r.ok) {
+      console.error(`[report] triage dispatch failed: ${r.status} ${await r.text()}`);
+    }
+  } catch (err) {
+    console.error("[report] triage dispatch error:", err?.message || err);
+  }
+}
+
 // REPORT_ALLOW_ORIGIN はカンマ区切りの許可オリジン一覧（複数アプリ対応）。未設定なら無制限。
 function originAllowed(origin) {
   const allow = process.env.REPORT_ALLOW_ORIGIN;
@@ -145,6 +176,8 @@ export default async function handler(req, res) {
       contentType: "application/json",
       addRandomSuffix: false,
     });
+
+    await kickTriage(); // best-effort: 失敗しても報告は成功
 
     return res.status(200).json({ ok: true, id });
   } catch (err) {
