@@ -38,9 +38,16 @@
 - **E2E実証(hiragana)**: 報告dispatch → Claudeが game-config.js に praiseVolume 追加+game.js反映(最小差分) → **PR #1 自動作成(ラベル付)** を確認 → テスト後始末済(PR close/branch削除/dispatch-test.yml撤去)。
 - 前提: 全リポの Secret `CLAUDE_CODE_OAUTH_TOKEN` 登録済(`claude setup-token`)。
 
+## 2026-07-01 リアルタイム通知化（report→即triage、追加課金なし）
+- **遅延の正体**=Discord通知が6時間ごとの triage cron 依存だったこと（report は即時Blob保存だが通知は次cronまで最大6h待ち）。
+- **対応**: `api/report.js` に `kickTriage()` 追加。報告保存直後に triage.yml を `workflow_dispatch` で即起動（best-effort: token無し/失敗でも報告は成功、cron がフォールバック）。env=`GH_DISPATCH_TOKEN`(既存・Vercel本番にあり)、`TRIAGE_REPO/_WORKFLOW/_REF` で上書き可。
+- **トークン権限拡張**: 既存 fine-grained PAT(GH_DISPATCH_TOKEN) に `n0mu-a1/patch-bot` を追加し **Actions: Read and write** 付与（値は不変=Vercel再設定不要）。
+- triage.yml: cron は承認ポーリング兼フォールバックとして残置（コメントのみ更新）。
+- **E2E実証**: 本番再デプロイ→テスト報告POST→数十秒で `workflow_dispatch` 起動→run success(Discord通知)確認。通知が最大6h→数分に短縮。
+
 ## 残タスク
-- [ ] **kanji-drill の approved-fix を E2E未実施**（WF/Secret/トグル/ラベルは設置済。hiraganaと同一構造なので同等動作の見込み）。
-- [ ] **Vercel↔GitHub 連携(§7)**: hiragana/kanji-drill 各VercelプロジェクトをGitHubリポにリンク(Production=main)→ マージで自動デプロイ。オーナー手作業・未実施。
+- [x] **kanji-drill の approved-fix E2E 通過**（2026-06-29）。401の原因はSecret値のペースト破損→`pbpaste|gh secret set`で再登録し解消。test dispatch→is_error:false/num_turns:8→**PR #1 自動作成**を確認。両リポでM2全線開通。
+- [x] **Vercel↔GitHub 連携(§7)完了**（2026-06-29）: hiragana/kanji-drill 各VercelプロジェクトをGitHubリポにリンク済。Production=リポデフォルト(main)自動。今後 PR を main にマージ→自動デプロイ。
 - [ ] triage cron(6h) は稼働開始済。実報告での承認→dispatch 通し確認は今後の運用で。
 - [ ] `REPORT_ALLOW_ORIGIN`：未設定=全許可。hiragana本番オリジン確定後に絞る（任意）。
 - [ ] チャット平文露出した GH_DISPATCH_TOKEN / DISCORD_BOT_TOKEN は気になれば rotate（任意）。
