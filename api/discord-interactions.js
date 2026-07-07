@@ -18,6 +18,7 @@
 import { createPublicKey, verify as edVerify } from "node:crypto";
 import { getReport, updateReport } from "../triage/store.mjs";
 import { dispatchApprovedFix } from "../triage/github.mjs";
+import { repoOf } from "../triage/apps.mjs";
 
 export const config = { api: { bodyParser: false } };
 
@@ -81,7 +82,10 @@ export default async function handler(req, res) {
     }
 
     if (action === "approve") {
-      const repo = t.repo;
+      // repo は結果整合な record ではなく env マッピングを主に解決する。
+      // notify の上書き直後に押されると getReport が旧 blob(repo なし)を返す窓があるため、
+      // 報告作成時から不変の rec.app から引き直す（record 値はフォールバック）。
+      const repo = repoOf(rec.app) || t.repo;
       if (!repo) return ephemeral(res, "対象リポジトリが未記録のため適用できません。");
       const payload = {
         id: rec.id, app: rec.app, comment: rec.comment, imageUrl: rec.imageUrl,
